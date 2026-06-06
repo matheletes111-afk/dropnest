@@ -1,0 +1,969 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>MEEEM - 4-Panel Project Guide</title>
+    <style>
+      :root {
+        --bg: #f6f7fb;
+        --card: #ffffff;
+        --text: #0f172a;
+        --muted: #475569;
+        --primary: #2563eb;
+        --primary2: #f59e0b;
+        --border: rgba(15, 23, 42, 0.10);
+        --shadow: 0 10px 25px rgba(8, 9, 14, 0.08);
+        --radius: 16px;
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+        background: linear-gradient(180deg, #eef2ff 0%, var(--bg) 50%, #f8fafc 100%);
+        color: var(--text);
+        line-height: 1.5;
+      }
+      header {
+        padding: 28px 16px 10px;
+        max-width: 980px;
+        margin: 0 auto;
+      }
+      .hero {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        padding: 18px 18px 16px;
+        position: relative;
+        overflow: hidden;
+      }
+      .hero:before {
+        content: "";
+        position: absolute;
+        inset: -80px -80px auto auto;
+        width: 220px;
+        height: 220px;
+        background: radial-gradient(circle at 30% 30%, rgba(37, 99, 235, 0.22), transparent 60%);
+        transform: rotate(10deg);
+        pointer-events: none;
+      }
+      .hero h1 {
+        margin: 0 0 6px;
+        font-size: 20px;
+      }
+      .hero p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 14px;
+        max-width: 64ch;
+      }
+      .grid {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 18px 16px 60px;
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 14px;
+      }
+      @media (min-width: 860px) {
+        .grid { grid-template-columns: 1fr 1fr; }
+      }
+
+      /* Panel UI */
+      .layout {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 14px 16px 60px;
+        display: grid;
+        grid-template-columns: 260px 1fr;
+        gap: 14px;
+        align-items: start;
+      }
+      @media (max-width: 860px) {
+        .layout {
+          grid-template-columns: 1fr;
+          padding-top: 8px;
+        }
+      }
+
+      .sidebar {
+        position: sticky;
+        top: 14px;
+        padding-bottom: 10px;
+      }
+      @media (max-width: 860px) {
+        .sidebar { position: static; }
+      }
+
+      .nav-title {
+        font-size: 12px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+        margin: 0 0 10px;
+      }
+
+      .nav-btn {
+        width: 100%;
+        text-align: left;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.65);
+        border-radius: 14px;
+        padding: 12px 12px;
+        margin-bottom: 10px;
+        cursor: pointer;
+        transition: transform 0.05s ease, border-color 0.15s ease, background 0.15s ease;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .nav-btn:hover { background: rgba(255, 255, 255, 0.9); }
+      .nav-btn:active { transform: translateY(1px); }
+      .nav-btn.active {
+        border-color: rgba(37, 99, 235, 0.35);
+        background: rgba(37, 99, 235, 0.06);
+      }
+
+      .nav-badge {
+        width: 30px;
+        height: 30px;
+        border-radius: 10px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 900;
+        font-size: 12px;
+        background: rgba(37, 99, 235, 0.12);
+        color: var(--primary);
+        flex: 0 0 auto;
+      }
+      .nav-btn.active .nav-badge {
+        background: rgba(37, 99, 235, 0.18);
+      }
+
+      .nav-meta {
+        display: flex;
+        flex-direction: column;
+        gap: 3px;
+      }
+      .nav-meta b {
+        font-size: 14px;
+      }
+      .nav-meta span {
+        font-size: 12px;
+        color: var(--muted);
+      }
+
+      .panel { display: none; }
+      .panel.active { display: block; }
+
+      .panel-card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: 0 8px 20px rgba(2, 6, 23, 0.05);
+        padding: 16px;
+      }
+
+      /* Accordion (sub-tabs inside a panel) */
+      .accordion {
+        display: grid;
+        gap: 12px;
+      }
+      details.acc-item {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), rgba(37, 99, 235, 0.01));
+      }
+      details.acc-item summary {
+        cursor: pointer;
+        padding: 12px 12px;
+        list-style: none;
+        font-weight: 800;
+        color: var(--text);
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      details.acc-item summary::-webkit-details-marker {
+        display: none;
+      }
+      details.acc-item .acc-content {
+        padding: 0 12px 12px;
+      }
+      details.acc-item[open] summary {
+        border-bottom: 1px solid var(--border);
+      }
+
+      /* When multiple cards appear in one panel, keep spacing */
+      .panel .card + .card { margin-top: 14px; }
+
+      .group {
+        margin-top: 10px;
+      }
+      .group h3 {
+        margin: 0 0 8px;
+        font-size: 13px;
+        color: var(--text);
+      }
+      .card {
+        background: var(--card);
+        border: 1px solid var(--border);
+        border-radius: var(--radius);
+        box-shadow: 0 8px 20px rgba(2, 6, 23, 0.05);
+        padding: 16px;
+      }
+      .card h2 {
+        margin: 0 0 8px;
+        font-size: 15px;
+      }
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 8px;
+        padding: 8px 10px;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.7);
+        color: var(--muted);
+        font-size: 12px;
+        margin: 0 0 10px;
+      }
+      .pill b { color: var(--text); font-weight: 700; }
+      a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+      a:hover { text-decoration: underline; }
+      ul { margin: 8px 0 0 18px; }
+      li { margin: 6px 0; color: var(--muted); }
+      .section-title {
+        margin-top: 0;
+        font-size: 14px;
+        color: var(--muted);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .steps {
+        margin-top: 10px;
+        display: grid;
+        gap: 10px;
+      }
+      .step {
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 12px;
+        background: linear-gradient(180deg, rgba(37, 99, 235, 0.04), rgba(37, 99, 235, 0.01));
+      }
+      .step .num {
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        background: rgba(37, 99, 235, 0.13);
+        color: var(--primary);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 800;
+        font-size: 12px;
+        margin-right: 10px;
+      }
+      .step b { color: var(--text); }
+      .route {
+        display: inline-block;
+        margin-top: 8px;
+        padding: 6px 10px;
+        border-radius: 12px;
+        background: rgba(245, 158, 11, 0.10);
+        border: 1px solid rgba(245, 158, 11, 0.25);
+        color: #92400e;
+        font-size: 12px;
+      }
+      .note {
+        margin: 10px 0 0;
+        padding: 12px;
+        border-radius: 14px;
+        background: rgba(245, 158, 11, 0.08);
+        border: 1px solid rgba(245, 158, 11, 0.22);
+        color: #7c2d12;
+        font-size: 13px;
+      }
+      .footer {
+        max-width: 980px;
+        margin: 0 auto;
+        padding: 0 16px 26px;
+        color: var(--muted);
+        font-size: 12px;
+      }
+      .kbd {
+        font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+        font-size: 12px;
+        border: 1px solid var(--border);
+        background: rgba(255, 255, 255, 0.7);
+        padding: 2px 6px;
+        border-radius: 8px;
+      }
+    </style>
+  </head>
+
+  <body>
+    <header>
+      <div class="hero">
+        <div class="pill">
+          <span>Project</span> <b>MEEEM Marketplace</b> <span>Quick User Guide</span>
+        </div>
+        <h1>Easy Guide: Pick Your Panel</h1>
+        <p>
+          This page explains how the system works for non-technical users.
+          Use it like a checklist: choose your role/panel on the left, then follow only the steps inside that panel.
+        </p>
+      </div>
+    </header>
+
+    <main class="layout">
+      <aside class="sidebar" aria-label="Choose panel">
+        <div class="nav-title">Panels</div>
+
+        <button type="button" class="nav-btn active" data-panel="customer" aria-controls="panel-customer" aria-selected="true">
+          <span class="nav-badge">C</span>
+          <span class="nav-meta"><b>Customer</b><span>Shop + track orders</span></span>
+        </button>
+
+        <button type="button" class="nav-btn" data-panel="product-seller" aria-controls="panel-product-seller" aria-selected="false">
+          <span class="nav-badge">P</span>
+          <span class="nav-meta"><b>Product Seller</b><span>Sell products</span></span>
+        </button>
+
+        <button type="button" class="nav-btn" data-panel="service-seller" aria-controls="panel-service-seller" aria-selected="false">
+          <span class="nav-badge">S</span>
+          <span class="nav-meta"><b>Service Seller</b><span>Sell services</span></span>
+        </button>
+
+        <button type="button" class="nav-btn" data-panel="admin" aria-controls="panel-admin" aria-selected="false">
+          <span class="nav-badge">A</span>
+          <span class="nav-meta"><b>Admin</b><span>Moderate marketplace</span></span>
+        </button>
+
+        <button type="button" class="nav-btn" data-panel="everyone" aria-controls="panel-everyone" aria-selected="false">
+          <span class="nav-badge">?</span>
+          <span class="nav-meta"><b>Common Tips</b><span>For everyone</span></span>
+        </button>
+      </aside>
+
+      <section aria-label="Panel content">
+        <section id="panel-customer" class="panel active" data-panel="customer">
+          <div class="panel-card">
+            <div class="accordion">
+              <details class="acc-item" open>
+                <summary>Shopping (Public)</summary>
+                <div class="acc-content">
+                  <div class="section-title">Shop, cart, and checkout</div>
+                  <div class="steps">
+                    <div class="step">
+                      <span class="num">1</span>
+                      <b>Open the Home page</b>
+                      <div class="note">Home shows categories and an “Explore products” grid.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">2</span>
+                      <b>Browse items</b>
+                      <div class="note">Use filters, then open product/service details.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">3</span>
+                      <b>Add to Cart</b>
+                      <div class="note">If the product has variants (like size/color), choose the right variant first.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">4</span>
+                      <b>Checkout and place order (COD)</b>
+                      <div class="note">Review order summary, select an address, and place the order.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">5</span>
+                      <b>Quick cart review before payment</b>
+                      <div class="note">Check the selected variant (size/color) and quantity. Remove or update items if needed.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">6</span>
+                      <b>Confirm you got an order result</b>
+                      <div class="note">After placing the order, you should see it in your customer order area (so you can track progress).</div>
+                    </div>
+                  </div>
+                </div>
+              </details>
+
+              <details class="acc-item">
+                <summary>My Customer Account</summary>
+                <div class="acc-content">
+                  <div class="section-title">Profile and order tracking</div>
+                  <div class="steps">
+                    <div class="step">
+                      <span class="num">1</span>
+                      <b>Open customer dashboard</b>
+                      <div class="note">Check your order activity.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">2</span>
+                      <b>Manage your profile</b>
+                      <div class="note">Update details from settings.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">3</span>
+                      <b>See your orders</b>
+                      <div class="note">Open your order history and track progress.</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">4</span>
+                      <b>Open an order to see status</b>
+                      <div class="note">Use order details to understand where your order is (processing/shipped/delivered).</div>
+                    </div>
+                    <div class="step">
+                      <span class="num">5</span>
+                      <b>Update your profile for future orders</b>
+                      <div class="note">Keep address/profile details up to date so checkout stays easy.</div>
+                    </div>
+                  </div>
+                  <div class="note">
+                    If you can’t see cart buttons: confirm you are logged in as <b>customer</b>.
+                    Cart/checkout is hidden for seller/admin accounts.
+                  </div>
+                </div>
+              </details>
+            </div>
+          </div>
+      </section>
+
+      <section id="panel-product-seller" class="panel" data-panel="product-seller">
+        <div class="panel-card">
+          <div class="accordion">
+            <details class="acc-item" open>
+              <summary>Products</summary>
+              <div class="acc-content">
+                <div class="section-title">Create and manage your product catalog</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open product seller overview</b>
+                    <div class="note">Start here to see your products and actions.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>View products list</b>
+                    <div class="note">Check what is currently available (and what needs changes).</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>Add a new product</b>
+                    <div class="note">Set category, images, variants (size/color), and stock quantity.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Preview your product page</b>
+                    <div class="note">Make sure images look correct and variant options appear properly.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Publish / save changes</b>
+                    <div class="note">After saving, confirm the product shows in your products list.</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="acc-item">
+              <summary>Subscription limits</summary>
+              <div class="acc-content">
+                <div class="section-title">Your plan controls what you can list</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open subscription plans</b>
+                    <div class="note">Current plan can restrict maximum number of products. (For testing, switching can be done without payment.)</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>Check your allowed limit</b>
+                    <div class="note">Look at how many products your current plan lets you have.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>If you reach the limit, take action</b>
+                    <div class="note">Either upgrade your plan, or adjust existing products (edit/remove) to make space.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Test the rules (optional)</b>
+                    <div class="note">Try adding another product after switching plans to confirm restrictions work as expected.</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="acc-item">
+              <summary>Profile & settings</summary>
+              <div class="acc-content">
+                <div class="section-title">Keep your seller profile updated</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open profile / settings</b>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>Update your seller details</b>
+                    <div class="note">Keep your basic info and contact details correct.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>Check your “ready to sell” settings</b>
+                    <div class="note">Make sure your account is set up so customers can order easily.</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="acc-item">
+              <summary>Promote your products (Seller Ads)</summary>
+              <div class="acc-content">
+                <div class="section-title">Request an ad to boost a specific product</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open promotion (ads) area</b>
+                    <div class="note">This is where you choose what to promote.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>Select the product you want to promote</b>
+                    <div class="note">Pick from your available products.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>Choose promotion timing</b>
+                    <div class="note">For testing, you can start quickly and see how it appears in the marketplace.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Submit the promotion request</b>
+                    <div class="note">Admin approves (or pauses) promotions.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Track the promotion status</b>
+                    <div class="note">Wait for approval, then watch when it becomes visible on the marketplace.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">6</span>
+                    <b>If rejected, fix and resubmit</b>
+                    <div class="note">When admin rejects, update your promotion and send it again with the same product.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">7</span>
+                    <b>Confirm it shows in the right place</b>
+                    <div class="note">Check the home/listing area where ads should appear during the active time.</div>
+                  </div>
+                </div>
+                <div class="note">
+                  After approval, your promoted product can show on the marketplace.
+                  When the time ends, the promotion stops automatically.
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-service-seller" class="panel" data-panel="service-seller">
+        <div class="panel-card">
+          <div class="accordion">
+            <details class="acc-item" open>
+              <summary>Services</summary>
+              <div class="acc-content">
+                <div class="section-title">Create and manage your service listings</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open service seller overview</b>
+                    <div class="note">See what services you have and what needs updates.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>View services list</b>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>Add a new service</b>
+                    <div class="note">Set service type, base price/discount, images, and weekly availability (if needed).</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Double-check schedule and availability</b>
+                    <div class="note">If availability is weekly, select correct days/times.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Save and confirm your listing</b>
+                    <div class="note">After saving, make sure it appears in your services list.</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="acc-item">
+              <summary>Subscription limits</summary>
+              <div class="acc-content">
+                <div class="section-title">Your plan controls what you can list</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open subscription plans</b>
+                    <div class="note">Current plan can restrict maximum number of services.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>Check your allowed limit</b>
+                    <div class="note">See how many services you can list right now.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>If you hit the limit, fix it</b>
+                    <div class="note">Upgrade your plan or edit/remove existing services to create space.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Verify restrictions after changes</b>
+                    <div class="note">Try creating a service again to confirm the limit enforcement works.</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="acc-item">
+              <summary>Profile & settings</summary>
+              <div class="acc-content">
+                <div class="section-title">Keep your seller profile updated</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open profile / settings</b>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>Update your service seller details</b>
+                    <div class="note">Keep contact and basic seller info correct.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>Check your selling readiness</b>
+                    <div class="note">Make sure customers can book/order without confusion.</div>
+                  </div>
+                </div>
+              </div>
+            </details>
+
+            <details class="acc-item">
+              <summary>Promote your services (Seller Ads)</summary>
+              <div class="acc-content">
+                <div class="section-title">Request a promotion to boost visibility</div>
+                <div class="steps">
+                  <div class="step">
+                    <span class="num">1</span>
+                    <b>Open promotion (ads) area</b>
+                    <div class="note">Choose what you want to promote.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">2</span>
+                    <b>Select the service to promote</b>
+                    <div class="note">Pick from your service listings.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>Choose promotion timing</b>
+                    <div class="note">For testing, start quickly and see where it appears.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Submit promotion request</b>
+                    <div class="note">Admin approves (or pauses) promotions.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Track the promotion status</b>
+                    <div class="note">Wait for approval, then watch when it becomes visible on the marketplace.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">6</span>
+                    <b>If rejected, fix and resubmit</b>
+                    <div class="note">Adjust the promotion request and submit again.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">7</span>
+                    <b>Confirm the ad location</b>
+                    <div class="note">Check the home/listing area where promoted services are supposed to appear.</div>
+                  </div>
+                </div>
+                <div class="note">
+                  After approval, your promoted service can show on the marketplace.
+                  When the time ends, the promotion stops automatically.
+                </div>
+              </div>
+            </details>
+          </div>
+        </div>
+      </section>
+
+      <section id="panel-admin" class="panel" data-panel="admin">
+      <div class="panel-card">
+        <div class="accordion">
+          <details class="acc-item" open>
+            <summary>Manage orders</summary>
+            <div class="acc-content">
+              <div class="section-title">From new order to completed order</div>
+              <div class="steps">
+                <div class="step">
+                  <span class="num">1</span>
+                  <b>Open the order list</b>
+                  <div class="note">Find the order that needs attention.</div>
+                </div>
+                <div class="step">
+                  <span class="num">2</span>
+                  <b>Check order details</b>
+                  <div class="note">Verify customer info, items, totals, and order method (COD).</div>
+                </div>
+                <div class="step">
+                  <span class="num">3</span>
+                  <b>Update the order progress</b>
+                  <div class="note">Move the order through the correct next step (packed/shipped/delivered or cancelled).</div>
+                </div>
+                <div class="step">
+                  <span class="num">4</span>
+                  <b>Resolve issues</b>
+                  <div class="note">If something is wrong, cancel or adjust the order as needed and note the reason.</div>
+                </div>
+                <div class="step">
+                  <span class="num">5</span>
+                  <b>Confirm completion</b>
+                  <div class="note">When all steps are done, make sure the order status updates correctly.</div>
+                </div>
+                <div class="step">
+                  <span class="num">6</span>
+                  <b>Keep a clear record</b>
+                  <div class="note">Write a short reason for the change so the seller and customer understand what happened.</div>
+                </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="acc-item">
+            <summary>Manage sellers</summary>
+            <div class="acc-content">
+              <div class="section-title">Keep sellers active and trustworthy</div>
+              <div class="steps">
+                <div class="step">
+                  <span class="num">1</span>
+                  <b>Open the sellers list</b>
+                  <div class="note">Review each seller account.</div>
+                </div>
+                <div class="step">
+                  <span class="num">2</span>
+                  <b>Check seller readiness</b>
+                  <div class="note">Look at plan status and whether their promotions are approved or paused.</div>
+                </div>
+                <div class="step">
+                  <span class="num">3</span>
+                  <b>Activate or deactivate</b>
+                  <div class="note">If a seller should stop selling, deactivate them and inform them.</div>
+                </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Review seller promotions (if any)</b>
+                    <div class="note">Ensure promoted products/services follow the rules and display correctly.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Check plan limits match reality</b>
+                    <div class="note">Verify that listing counts match what the plan allows.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">6</span>
+                    <b>Communicate next actions</b>
+                    <div class="note">If something needs change, tell the seller what to do.</div>
+                  </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="acc-item">
+            <summary>Manage subscriptions</summary>
+            <div class="acc-content">
+              <div class="section-title">Control listing limits by plan</div>
+              <div class="steps">
+                <div class="step">
+                  <span class="num">1</span>
+                  <b>Open subscription overview</b>
+                  <div class="note">See which sellers are on which plan.</div>
+                </div>
+                <div class="step">
+                  <span class="num">2</span>
+                  <b>Apply plan changes</b>
+                  <div class="note">Update plan for testing or when a seller upgrades.</div>
+                </div>
+                <div class="step">
+                  <span class="num">3</span>
+                  <b>Confirm limits are enforced</b>
+                  <div class="note">Make sure max products/services limits match the plan rules.</div>
+                </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Re-check after saving</b>
+                    <div class="note">Refresh and confirm the new limits are reflected.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Document what changed</b>
+                    <div class="note">Keep notes for yourself so you can explain decisions later.</div>
+                  </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="acc-item">
+            <summary>Manage categories & marketplace content</summary>
+            <div class="acc-content">
+              <div class="section-title">Keep the marketplace organized</div>
+              <div class="steps">
+                <div class="step">
+                  <span class="num">1</span>
+                  <b>Edit categories</b>
+                  <div class="note">Maintain product categories and service categories.</div>
+                </div>
+                <div class="step">
+                  <span class="num">2</span>
+                  <b>Manage banners and ads</b>
+                  <div class="note">Update what appears on the home and listing screens.</div>
+                </div>
+                  <div class="step">
+                    <span class="num">3</span>
+                    <b>Clean up old or wrong category mappings</b>
+                    <div class="note">Make sure products and services appear under the right category.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">4</span>
+                    <b>Check “what customers see”</b>
+                    <div class="note">Open the home/browse screens and verify the marketplace looks correct.</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Keep listings consistent</b>
+                    <div class="note">Use a simple rule: if something looks confusing, fix it now.</div>
+                  </div>
+              </div>
+            </div>
+          </details>
+
+          <details class="acc-item">
+            <summary>Manage seller promotions (Seller Ads)</summary>
+            <div class="acc-content">
+              <div class="section-title">Approve and control promoted products/services</div>
+              <div class="steps">
+                <div class="step">
+                  <span class="num">1</span>
+                  <b>Open promotion requests</b>
+                  <div class="note">See what sellers have requested to promote.</div>
+                </div>
+                <div class="step">
+                  <span class="num">2</span>
+                  <b>Review what will be shown</b>
+                  <div class="note">Check the promoted item, promotion timing, and the seller plan.</div>
+                </div>
+                <div class="step">
+                  <span class="num">3</span>
+                  <b>Approve, reject, or pause</b>
+                  <div class="note">Approve to publish the promotion, or pause/reject if needed. If rejected, add a short reason for the seller.</div>
+                </div>
+                <div class="step">
+                  <span class="num">4</span>
+                  <b>Monitor during active time</b>
+                  <div class="note">When the time ends, the promotion should stop automatically.</div>
+                </div>
+                  <div class="step">
+                    <span class="num">5</span>
+                    <b>Record your decision + reason</b>
+                    <div class="note">Approve, reject, or pause with a short explanation (especially if rejected).</div>
+                  </div>
+                  <div class="step">
+                    <span class="num">6</span>
+                    <b>Verify start/end time behavior</b>
+                    <div class="note">Confirm the promotion becomes active on time and stops at the correct end time.</div>
+                  </div>
+              </div>
+              <div class="note">
+                This is the admin side of “seller ad management” (promoting a product/service by request).
+              </div>
+            </div>
+          </details>
+        </div>
+      </div>
+      </section>
+
+      <section id="panel-everyone" class="panel" data-panel="everyone">
+      <section class="card">
+        <h2>Common Tips (Everyone)</h2>
+        <div class="section-title">Quick reminders</div>
+        <div class="steps">
+          <div class="step">
+            <span class="num">1</span>
+            <b>Make sure you are logged into the correct role</b>
+            <div class="note">Cart + checkout are customer-only. Seller/admin accounts won’t see customer cart buttons.</div>
+          </div>
+          <div class="step">
+            <span class="num">2</span>
+            <b>For products, variants matter</b>
+            <div class="note">If a product has variants (size/color), you must select a valid variant before “Add to Cart” from the product detail page.</div>
+          </div>
+          <div class="step">
+            <span class="num">3</span>
+            <b>For quick testing (subscription)</b>
+            <div class="note">Subscription plan buttons are meant to be used for testing restrictions today. Payment flow can be added later.</div>
+          </div>
+        </div>
+      </section>
+      </section>
+    </section>
+    </main>
+
+    <div class="footer">
+      Tip: if your browser blocks local HTML, copy the file to a safe folder and open it.
+      This guide is static and does not require internet.
+    </div>
+
+    <script>
+      (function () {
+        var buttons = Array.prototype.slice.call(document.querySelectorAll('.nav-btn'));
+        var panels = Array.prototype.slice.call(document.querySelectorAll('.panel'));
+
+        function setActivePanel(panelKey) {
+          buttons.forEach(function (btn) {
+            var isActive = btn.dataset.panel === panelKey;
+            btn.classList.toggle('active', isActive);
+            btn.setAttribute('aria-selected', isActive ? 'true' : 'false');
+          });
+
+          panels.forEach(function (panel) {
+            panel.classList.toggle('active', panel.dataset.panel === panelKey);
+          });
+        }
+
+        buttons.forEach(function (btn) {
+          btn.addEventListener('click', function () {
+            setActivePanel(btn.dataset.panel);
+          });
+        });
+      })();
+    </script>
+  </body>
+</html>
+

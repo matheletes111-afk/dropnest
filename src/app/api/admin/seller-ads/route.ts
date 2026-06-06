@@ -1,0 +1,96 @@
+import { NextRequest, NextResponse } from "next/server"
+import { auth } from "@/lib/auth"
+import { prisma } from "@/lib/prisma"
+import { isAdmin } from "@/lib/rbac"
+import { getPaginationFromSearchParams } from "@/lib/admin-pagination"
+import type { Prisma, SellerAdStatus } from "@prisma/client"
+
+export async function GET(request: NextRequest) {
+  try {
+    const session = await auth()
+    if (!session?.user || !isAdmin(session.user)) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+    }
+
+    const { searchParams } = new URL(request.url)
+    const { skip, take, page, perPage } = getPaginationFromSearchParams({
+      page: searchParams.get("page") ?? undefined,
+      perPage: searchParams.get("perPage") ?? undefined,
+    })
+
+    const tab = searchParams.get("tab") ?? "all"
+    let where: Prisma.SellerAdWhereInput = {}
+    const statusMap: Record<string, SellerAdStatus> = {
+      pending: "PENDING_APPROVAL",
+      active: "ACTIVE",
+      paused: "PAUSED",
+      ended: "ENDED",
+      rejected: "REJECTED" as any,
+    }
+    if (tab !== "all" && statusMap[tab]) {
+      where = { status: statusMap[tab] }
+    }
+
+    const [ads, totalCount, stats, activeCount, pendingCount, rejectedCount] = await Promise.all([
+      prisma.sellerAd.findMany({
+        where,
+        skip,
+        take,
+        include: {
+          seller: {
+            include: {
+              user: { select: { email: true, name: true } },
+              store: { select: { name: true } },
+            },
+          },
+          hotelSeller: {
+            include: {
+              user: { select: { email: true, name: true } },
+            },
+          },
+          customer: { select: { email: true, name: true } },
+          product: { select: { id: true, name: true } },
+          service: { select: { id: true, name: true } },
+          hotel: { select: { id: true, name: true } },
+          _count: { select: { adClicks: true } },
+        },
+        orderBy: { createdAt: "desc" },
+      }),
+      prisma.sellerAd.count({ where }),
+      prisma.sellerAd.aggregate({
+        _sum: { spentAmount: true },
+        _count: { _all: true },
+      }),
+      prisma.sellerAd.count({ where: { status: "ACTIVE" } }),
+      prisma.sellerAd.count({ where: { status: "PENDING_APPROVAL" } }),
+      prisma.sellerAd.count({ where: { status: "REJECTED" as any } }),
+    ])
+
+    const serialized = ads.map((ad) => ({
+      ...ad,
+      totalBudget: Number(ad.totalBudget),
+      spentAmount: Number(ad.spentAmount),
+      maxCpc: Number(ad.maxCpc),
+      targetCountries: ad.targetCountries as string[] | null,
+    }))
+
+    const totalPages = Math.ceil(totalCount / perPage)
+    return NextResponse.json({
+      ads: serialized,
+      totalCount,
+      totalPages,
+      page,
+      perPage,
+      totalRevenue: Number(stats._sum.spentAmount || 0),
+      activeCount,
+      pendingCount,
+      rejectedCount,
+    })
+  } catch (error) {
+    console.error("Error fetching seller ads:", error)
+    return NextResponse.json(
+      { error: "Failed to fetch seller ads" },
+      { status: 500 }
+    )
+  }
+}

@@ -1,0 +1,1379 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  CUSTOMER
+  SELLER_PRODUCT
+  SELLER_SERVICE
+  SELLER_HOTEL
+  SELLER_RESTAURANT
+  ADMIN
+}
+
+enum SellerType {
+  PRODUCT
+  SERVICE
+}
+
+enum SubscriptionPlan {
+  FREE
+  STANDARD
+  PREMIUM
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  CANCELED
+  PAST_DUE
+  TRIALING
+}
+
+enum ServiceType {
+  APPOINTMENT
+  FIXED_PRICE
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PROCESSING
+  SHIPPED
+  OUT_FOR_DELIVERY
+  DELIVERED
+  CANCELLED
+  REFUNDED
+  EXCHANGED
+}
+
+enum ProductCondition {
+  NEW
+  USED
+}
+
+enum ReturnResolutionType {
+  REFUND
+  EXCHANGE
+}
+
+/// Tracks whether the customer’s extra payment for a pricier exchange was received (typically COD at delivery).
+/// COMPLETED = seller recorded that the price difference was collected — it does not block shipment in the app.
+enum ExchangeTopUpStatus {
+  NOT_REQUIRED
+  PENDING
+  COMPLETED
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+enum AddressType {
+  HOME
+  OFFICE
+  OTHER
+}
+
+enum ServiceStatus {
+  PENDING
+  CONFIRMED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+model User {
+  id                String    @id @default(cuid())
+  email             String    @unique
+  emailVerified     DateTime?
+  name              String?
+  password          String?
+  image             String?
+  role                    UserRole  @default(CUSTOMER)
+  phone                   String?
+  phoneCountryCode        String?
+  isEmailVerified         Boolean   @default(false)
+  verifyEmailOtp          String?
+  emailVerificationExpires DateTime?
+  emailOtpSentAt          DateTime?
+  /// Set when the customer finishes or skips the category-interest onboarding (web/mobile).
+  categoryInterestPromptCompletedAt DateTime?
+  createdAt               DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
+
+  accounts      Account[]
+  sessions      Session[]
+  seller        Seller?
+  hotelSeller   HotelSeller?
+  restaurantSeller RestaurantSeller?
+  orders        Order[]
+  reviews       Review[]
+  cartItems     CartItem[]
+  wishlistItems WishlistItem[]
+  addresses     UserAddress[]
+  recentViews   RecentView[]
+  walletBalance Decimal    @default(0) @db.Decimal(14, 2)
+  walletTransactions WalletTransaction[]
+  /// CPC ads created by customers (own business / creative-only; no linked product).
+  customerSellerAds SellerAd[] @relation("CustomerSellerAds")
+  categoryInterests UserCategoryInterest[]
+
+  @@map("users")
+}
+
+model WalletTransaction {
+  id              String   @id @default(cuid())
+  userId          String
+  amount          Decimal  @db.Decimal(14, 2)
+  reason          String
+  returnRequestId String?  @unique
+  note            String?
+  createdAt       DateTime @default(now())
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  returnRequest ReturnRequest? @relation(fields: [returnRequestId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+  @@map("wallet_transactions")
+}
+
+model RecentView {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String
+  viewedAt  DateTime @default(now())
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId])
+  @@index([userId])
+  @@map("recent_views")
+}
+
+model UserAddress {
+  id            String   @id @default(cuid())
+  userId        String
+  fullName      String
+  addressType  AddressType @default(OTHER)
+  phone         String
+  addressLine1  String
+  addressLine2  String?
+  city          String
+  state         String
+  postalCode    String
+  country       String
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("user_addresses")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+enum SellerAdStatus {
+  PENDING_APPROVAL
+  ACTIVE
+  PAUSED
+  ENDED
+  REJECTED
+}
+
+enum OnboardingStatus {
+  PENDING
+  APPROVED
+  CORRECTION_NEEDED
+  REJECTED
+}
+
+enum CreativeType {
+  IMAGE
+  VIDEO
+}
+
+enum AdPlacement {
+  WEB
+  MOBILE
+}
+
+enum SellerBalanceTxnKind {
+  DEBIT
+  CREDIT
+}
+
+model Seller {
+  id          String     @id @default(cuid())
+  userId      String     @unique
+  type        SellerType
+  isApproved  Boolean    @default(false)
+  isSuspended Boolean    @default(false)
+  nationIdentityNumber String? // Deprecated in favor of KYC model but keeping for backward compatibility if needed
+
+  // Onboarding Status
+  onboardingStep      Int               @default(2) // Start from Step 2
+  onboardingCompleted Boolean           @default(false)
+  status              OnboardingStatus  @default(PENDING)
+  adminFeedback       String?           @db.Text
+  commissionRate      Float?            // Seller-specific commission override
+
+  adBalance   Decimal    @default(0) // Phase 2: top-up; Phase 1: track only
+  /// Net position: + seller net when lines are delivered, − customer wallet credits (returns/exchange diff), + exchange top-up recorded.
+  netBalance  Decimal    @default(0) @db.Decimal(14, 2)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  store        Store?
+  businessInfo SellerBusinessInfo?
+  kyc          SellerKYC?
+  bankDetails  SellerBankDetails?
+  agreement    SellerAgreement?
+  
+  subscription Subscription?
+  products     Product[]
+  services     Service[]
+  orders       Order[]
+  orderItems   OrderItem[]
+  sellerAds    SellerAd[]
+  balanceTransactions SellerBalanceTransaction[]
+
+  selectedCategories    Category[]      @relation("SellerCategories")
+  selectedServiceCategories ServiceCategory[] @relation("SellerServiceCategories")
+
+  @@map("sellers")
+}
+
+model SellerBusinessInfo {
+  id                String   @id @default(cuid())
+  sellerId          String   @unique
+  businessName      String?
+  businessType      String?  // Individual, Proprietor, Partnership, Company
+  businessRegNumber String?
+  taxIdNumber       String?
+  busRegCertUrl     String?
+  street            String?
+  city              String?
+  district          String?
+  postalCode        String?
+  yearsInOperation Int?
+  natureOfBusiness  String?
+  haveGst           Boolean  @default(false)
+  gstInvNo          String?
+  gstCustomerName   String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  seller            Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_business_info")
+}
+
+model SellerKYC {
+  id                String   @id @default(cuid())
+  sellerId          String   @unique
+  idType            String?  // National ID, Passport, Driver's License
+  idNumber          String?
+  idFrontUrl        String?
+  idBackUrl         String?
+  selfieUrl         String?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  seller            Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_kyc")
+}
+
+model SellerBankDetails {
+  id                   String   @id @default(cuid())
+  sellerId             String   @unique
+  bankName             String?
+  accountHolderName    String?
+  accountNumber        String?
+  branchName           String?
+  passbookUrl          String?
+  mobileMoneyOption    String?  // Orange Money, Africell Money
+  preferredPayoutMethod String? // Bank Transfer, Mobile Wallet
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  seller               Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_bank_details")
+}
+
+model SellerAgreement {
+  id                   String   @id @default(cuid())
+  sellerId             String   @unique
+  agreedToTerms        Boolean  @default(false)
+  agreedToCommission   Boolean  @default(false)
+  agreedToReturnPolicy Boolean  @default(false)
+  agreedToPrivacy      Boolean  @default(false)
+  createdAt            DateTime @default(now())
+  updatedAt            DateTime @updatedAt
+
+  seller               Seller   @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("seller_agreements")
+}
+
+// ==========================================
+// HOTEL SELLER MODELS
+// ==========================================
+
+model HotelSeller {
+  id                  String           @id @default(cuid())
+  userId              String           @unique
+  isApproved          Boolean          @default(false)
+  isSuspended         Boolean          @default(false)
+  
+  // Onboarding Status
+  onboardingStep      Int              @default(2)
+  onboardingCompleted Boolean          @default(false)
+  status              OnboardingStatus @default(PENDING)
+  adminFeedback       String?          @db.Text
+  commissionRate      Float?           // Custom override
+
+  // Step 4 fields
+  estimateHotelCount  Int              @default(0)
+  estimateRoomCount   Int              @default(0)
+  categories          Json             @default("[]") // Multi-select Categories
+  logo                String?
+  banner              String?
+  mainPhoto           String?
+  
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessInfo        HotelBusinessInfo?
+  kyc                 HotelKYC?
+  bankDetails         HotelBankDetails?
+  agreement           HotelAgreement?
+  subscription        HotelSubscription?
+  hotels              Hotel[]
+  sellerAds           SellerAd[]
+
+  @@map("hotel_sellers")
+}
+
+model Hotel {
+  id                String      @id @default(cuid())
+  hotelSellerId     String
+  name              String
+  description       String?     @db.Text
+  starRating        Int         @default(0)
+  amenities         Json        @default("[]")
+  checkInPolicy     String?     @db.Text
+  checkOutPolicy    String?     @db.Text
+  address           String?
+  city              String?
+  state             String?
+  lat               Float?
+  lng               Float?
+  images            Json        @default("[]")
+  logo              String?
+  banner            String?
+  isActive          Boolean     @default(true)
+  isDeleted         Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  hotelSeller       HotelSeller @relation(fields: [hotelSellerId], references: [id], onDelete: Cascade)
+  rooms             Room[]
+  sellerAds         SellerAd[]
+
+  @@map("hotels")
+}
+
+model Room {
+  id                String      @id @default(cuid())
+  hotelId           String
+  name              String
+  description       String?     @db.Text
+  images            Json        @default("[]")
+  price             Float
+  capacityAdults    Int         @default(2)
+  capacityChildren  Int         @default(0)
+  amenities         Json        @default("[]")
+  totalRooms        Int         @default(1)
+  isActive          Boolean     @default(true)
+  isDeleted         Boolean     @default(false)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  hotel             Hotel       @relation(fields: [hotelId], references: [id], onDelete: Cascade)
+  availability      RoomAvailability[]
+
+  @@map("rooms")
+}
+
+model RoomAvailability {
+  id                String      @id @default(cuid())
+  roomId            String
+  date              DateTime
+  isBlocked         Boolean     @default(false)
+  priceOverride     Float?
+  bookedCount       Int         @default(0)
+
+  room              Room        @relation(fields: [roomId], references: [id], onDelete: Cascade)
+
+  @@unique([roomId, date])
+  @@map("room_availability")
+}
+
+model HotelBusinessInfo {
+  id                String      @id @default(cuid())
+  hotelSellerId     String      @unique
+  businessName      String?
+  businessType      String?     // Individual, Proprietor, Partnership, Company
+  businessRegNumber String?
+  taxIdNumber       String?     // TIN/PAN
+  busRegCertUrl     String?
+  landmark          String?
+  managerName       String?
+  pocContact        String?
+  street            String?
+  city              String?
+  district          String?
+  state             String?
+  haveGst           Boolean     @default(false)
+  gstInvNo          String?
+  gstCustomerName   String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  hotelSeller       HotelSeller @relation(fields: [hotelSellerId], references: [id], onDelete: Cascade)
+
+  @@map("hotel_business_info")
+}
+
+model HotelKYC {
+  id                String      @id @default(cuid())
+  hotelSellerId     String      @unique
+  idType            String?     // National ID, Passport, Driver's License
+  idNumber          String?
+  idFrontUrl        String?
+  idBackUrl         String?
+  selfieUrl         String?
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  hotelSeller       HotelSeller @relation(fields: [hotelSellerId], references: [id], onDelete: Cascade)
+
+  @@map("hotel_kyc")
+}
+
+model HotelBankDetails {
+  id                   String      @id @default(cuid())
+  hotelSellerId        String      @unique
+  bankName             String?
+  accountHolderName    String?
+  accountNumber        String?
+  branchName           String?     // Also used for IFSC
+  passbookUrl          String?
+  mobileMoneyOption    String?
+  preferredPayoutMethod String?
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  hotelSeller          HotelSeller @relation(fields: [hotelSellerId], references: [id], onDelete: Cascade)
+
+  @@map("hotel_bank_details")
+}
+
+model HotelAgreement {
+  id                   String      @id @default(cuid())
+  hotelSellerId        String      @unique
+  agreedToTerms        Boolean     @default(false)
+  agreedToCommission   Boolean     @default(false)
+  agreedToPrivacy      Boolean     @default(false)
+  createdAt            DateTime    @default(now())
+  updatedAt            DateTime    @updatedAt
+
+  hotelSeller          HotelSeller @relation(fields: [hotelSellerId], references: [id], onDelete: Cascade)
+
+  @@map("hotel_agreements")
+}
+
+model HotelSubscription {
+  id                String             @id @default(cuid())
+  hotelSellerId     String             @unique
+  planId            String
+  status            SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  hotelSeller HotelSeller @relation(fields: [hotelSellerId], references: [id], onDelete: Cascade)
+  plan        Plan        @relation(fields: [planId], references: [id])
+
+  @@map("hotel_subscriptions")
+}
+
+// ==========================================
+// RESTAURANT SELLER MODELS
+// ==========================================
+
+model RestaurantSeller {
+  id                  String           @id @default(cuid())
+  userId              String           @unique
+  isApproved          Boolean          @default(false)
+  isSuspended         Boolean          @default(false)
+  
+  // Onboarding Status
+  onboardingStep      Int              @default(2)
+  onboardingCompleted Boolean          @default(false)
+  status              OnboardingStatus @default(PENDING)
+  adminFeedback       String?          @db.Text
+  commissionRate      Float?           // Custom override
+
+  // Step 4 fields
+  estimateRestaurantCount Int          @default(0)
+  serviceTypes        Json             @default("[]") // Delivery, Dine-in, Takeaway
+  primaryCuisine      Json             @default("[]") // Multi-select Cuisines
+  logo                String?
+  banner              String?
+  mainPhoto           String?
+  
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  user                User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  businessInfo        RestaurantBusinessInfo?
+  kyc                 RestaurantKYC?
+  bankDetails         RestaurantBankDetails?
+  agreement           RestaurantAgreement?
+  subscription        RestaurantSubscription?
+
+  @@map("restaurant_sellers")
+}
+
+model RestaurantBusinessInfo {
+  id                String           @id @default(cuid())
+  restaurantSellerId String           @unique
+  businessName      String?
+  businessType      String?
+  businessRegNumber String?
+  taxIdNumber       String?
+  busRegCertUrl     String?
+  landmark          String?
+  managerName       String?
+  pocContact        String?
+  street            String?
+  city              String?
+  district          String?
+  state             String?
+  haveGst           Boolean          @default(false)
+  gstInvNo          String?
+  gstCustomerName   String?
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  restaurantSeller  RestaurantSeller @relation(fields: [restaurantSellerId], references: [id], onDelete: Cascade)
+
+  @@map("restaurant_business_info")
+}
+
+model RestaurantKYC {
+  id                String           @id @default(cuid())
+  restaurantSellerId String           @unique
+  idType            String?
+  idNumber          String?
+  idFrontUrl        String?
+  idBackUrl         String?
+  selfieUrl         String?
+  foodLicenseNumber String?          // Added for restaurants
+  foodLicenseUrl    String?          // Added for restaurants
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  restaurantSeller  RestaurantSeller @relation(fields: [restaurantSellerId], references: [id], onDelete: Cascade)
+
+  @@map("restaurant_kyc")
+}
+
+model RestaurantBankDetails {
+  id                   String           @id @default(cuid())
+  restaurantSellerId   String           @unique
+  bankName             String?
+  accountHolderName    String?
+  accountNumber        String?
+  branchName           String?
+  passbookUrl          String?
+  mobileMoneyOption    String?
+  preferredPayoutMethod String?
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  restaurantSeller     RestaurantSeller @relation(fields: [restaurantSellerId], references: [id], onDelete: Cascade)
+
+  @@map("restaurant_bank_details")
+}
+
+model RestaurantAgreement {
+  id                   String           @id @default(cuid())
+  restaurantSellerId   String           @unique
+  agreedToTerms        Boolean          @default(false)
+  agreedToCommission   Boolean          @default(false)
+  agreedToPrivacy      Boolean          @default(false)
+  createdAt            DateTime         @default(now())
+  updatedAt            DateTime         @updatedAt
+
+  restaurantSeller     RestaurantSeller @relation(fields: [restaurantSellerId], references: [id], onDelete: Cascade)
+
+  @@map("restaurant_agreements")
+}
+
+model RestaurantSubscription {
+  id                String             @id @default(cuid())
+  restaurantSellerId String           @unique
+  planId            String
+  status            SubscriptionStatus @default(TRIALING)
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  restaurantSeller RestaurantSeller @relation(fields: [restaurantSellerId], references: [id], onDelete: Cascade)
+  plan             Plan             @relation(fields: [planId], references: [id])
+
+  @@map("restaurant_subscriptions")
+}
+
+model SellerBalanceTransaction {
+  id              String               @id @default(cuid())
+  sellerId        String
+  /// Absolute value; use `kind` for direction (DEBIT = charge to seller, CREDIT = money to seller).
+  amount          Decimal              @db.Decimal(14, 2)
+  kind            SellerBalanceTxnKind @default(DEBIT)
+  reason          String
+  /// Wallet / return-linked rows (debits and exchange top-up credits).
+  returnRequestId String?
+  /// Product line delivery settlement (CREDIT seller net when line is delivered). Set for all rows; mirrors return request line when applicable.
+  orderItemId     String?
+  orderId         String?
+  note            String?
+  createdAt       DateTime             @default(now())
+
+  seller        Seller         @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  returnRequest ReturnRequest? @relation(fields: [returnRequestId], references: [id], onDelete: Cascade)
+  orderItem     OrderItem?     @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([sellerId, createdAt])
+  @@index([returnRequestId])
+  @@index([orderItemId, reason])
+  @@map("seller_balance_transactions")
+}
+
+model SellerAd {
+  id              String         @id @default(cuid())
+  /// Set for seller-created ads; null when the advertiser is a customer user.
+  sellerId        String?
+  hotelSellerId   String?
+  customerUserId  String?
+  productId       String?
+  serviceId       String?
+  hotelId         String?
+  title           String
+  description     String?        @db.Text
+  creativeType    CreativeType
+  creativeUrl     String
+  mobileCreativeType CreativeType?
+  mobileCreativeUrl  String?
+  placements      AdPlacement[]  @default([WEB])
+  status          SellerAdStatus @default(PENDING_APPROVAL)
+  totalBudget     Decimal
+  spentAmount     Decimal        @default(0)
+  maxCpc          Decimal
+  targetAudience  Int?           // desired number of clicks (stored for reference)
+  targetCountries Json?          // e.g. ["IN", "US"]
+  targetAgeMin    Int?
+  targetAgeMax    Int?
+  expandAudience  Boolean        @default(false)
+  startAt         DateTime
+  rejectionReason String?        @db.Text
+  endAt           DateTime
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+
+  seller      Seller?      @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  hotelSeller HotelSeller? @relation(fields: [hotelSellerId], references: [id], onDelete: Cascade)
+  customer    User?        @relation("CustomerSellerAds", fields: [customerUserId], references: [id], onDelete: Cascade)
+  product     Product?     @relation(fields: [productId], references: [id], onDelete: SetNull)
+  service     Service?     @relation(fields: [serviceId], references: [id], onDelete: SetNull)
+  hotel       Hotel?       @relation(fields: [hotelId], references: [id], onDelete: SetNull)
+  adClicks    AdClick[]
+
+  @@index([sellerId])
+  @@index([hotelSellerId])
+  @@index([customerUserId])
+  @@index([status])
+  @@index([startAt, endAt])
+  @@map("seller_ads")
+}
+
+model AdClick {
+  id        String   @id @default(cuid())
+  adId      String
+  userId    String?
+  sessionId String?
+  createdAt DateTime @default(now())
+
+  ad SellerAd @relation(fields: [adId], references: [id], onDelete: Cascade)
+
+  @@index([adId])
+  @@index([adId, sessionId, createdAt])
+  @@map("ad_clicks")
+}
+
+model Store {
+  id          String   @id @default(cuid())
+  sellerId    String   @unique
+  name        String
+  description String?  @db.Text
+  logo        String?
+  banner      String?
+  address     String?
+  city        String?
+  state       String?
+  zipCode     String?
+  country     String?
+  phone       String?
+  website     String?
+  lat         Float?
+  lng         Float?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  seller Seller @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+
+  @@map("stores")
+}
+
+model Plan {
+  id          String            @id @default(cuid())
+  name        SubscriptionPlan  @unique
+  displayName String
+  description String?           @db.Text
+  price       Float
+  maxProducts Int?              // null = unlimited
+  maxOrders   Int?              // null = unlimited
+  features    Json              // Store plan features as JSON
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+
+  subscriptions Subscription[]
+  hotelSubscriptions HotelSubscription[]
+  restaurantSubscriptions RestaurantSubscription[]
+
+  @@map("subscription_plans")
+}
+
+model Subscription {
+  id                String             @id @default(cuid())
+  sellerId          String             @unique
+  planId            String
+  status            SubscriptionStatus @default(TRIALING)
+  stripeCustomerId String?            @unique
+  stripeSubscriptionId String?         @unique
+  stripePriceId     String?
+  currentPeriodStart DateTime?
+  currentPeriodEnd   DateTime?
+  cancelAtPeriodEnd  Boolean           @default(false)
+  createdAt         DateTime           @default(now())
+  updatedAt         DateTime           @updatedAt
+
+  seller Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  plan   Plan             @relation(fields: [planId], references: [id])
+
+  @@map("subscriptions")
+}
+
+model Category {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  slug          String   @unique
+  description   String?  @db.Text
+  image         String?
+  mobileIcon    String?  // PNG URL for mobile (e.g. /uploads/categories/mobile-*.png)
+  commissionRate Float   @default(10.0)
+  isActive      Boolean  @default(true)
+  isFeatured    Boolean  @default(false) // Max 4 can be featured (for mobile home)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  products      Product[]
+  subcategories Subcategory[]
+  banners       Banner[]
+  userInterests UserCategoryInterest[]
+  sellers       Seller[] @relation("SellerCategories")
+
+  @@map("categories")
+}
+
+model UserCategoryInterest {
+  id         String   @id @default(cuid())
+  userId     String
+  categoryId String
+  createdAt  DateTime @default(now())
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category Category @relation(fields: [categoryId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, categoryId])
+  @@index([userId])
+  @@index([categoryId])
+  @@map("user_category_interests")
+}
+
+model ServiceCategory {
+  id            String   @id @default(cuid())
+  name          String   @unique
+  slug          String   @unique
+  description   String?  @db.Text
+  image         String?
+  mobileIcon    String?  // PNG URL for mobile
+  commissionRate Float   @default(10.0)
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  services      Service[]
+  banners       Banner[]
+  sellers       Seller[] @relation("SellerServiceCategories")
+
+  @@map("service_categories")
+}
+
+model Subcategory {
+  id            String   @id @default(cuid())
+  name          String
+  slug          String   @unique
+  description   String?  @db.Text
+  image         String?
+  mobileIcon    String?  // PNG URL for mobile
+  isActive      Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  categoryId    String
+  category      Category @relation(fields: [categoryId], references: [id])
+  banners       Banner[]
+  products      Product[]
+
+  @@unique([name, categoryId])
+  @@map("subcategories")
+}
+
+
+model Banner {
+  id                String   @id @default(cuid())
+  bannerHeading     String
+  bannerDescription String?  @db.Text
+  bannerImage       String   // URL to the banner image
+  isActive          Boolean  @default(true)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // When no category/serviceCategory set: "product" = All products, "service" = All services
+  targetType        String?  // "product" | "service"
+  
+  // Optional: target by product category/subcategory OR service category
+  categoryId        String?
+  category          Category? @relation(fields: [categoryId], references: [id])
+  subcategoryId     String?
+  subcategory       Subcategory? @relation(fields: [subcategoryId], references: [id])
+  serviceCategoryId String?
+  serviceCategory   ServiceCategory? @relation(fields: [serviceCategoryId], references: [id])
+
+  @@map("banners")
+}
+
+
+model Product {
+  id             String   @id @default(cuid())
+  sellerId       String
+  categoryId     String
+  subcategoryId  String?
+  name           String
+  slug           String
+  description    String?  @db.Text
+  images         Json     // Array of image URLs (parent/listing image)
+  isActive       Boolean  @default(true)
+  isDeleted      Boolean  @default(false)
+  isFeatured    Boolean  @default(false)
+  condition      ProductCondition @default(NEW)
+  deliveryChargePerKm Float @default(0)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  seller       Seller         @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  category     Category       @relation(fields: [categoryId], references: [id])
+  subcategory  Subcategory?   @relation(fields: [subcategoryId], references: [id])
+  variants     ProductVariant[]
+  orderItems   OrderItem[]
+  reviews      Review[]
+  cartItems    CartItem[]
+  wishlistItems WishlistItem[]
+  sellerAds    SellerAd[]
+  recentViews  RecentView[]
+
+  @@unique([sellerId, slug])
+  @@index([categoryId])
+  @@index([subcategoryId])
+  @@index([sellerId])
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("products")
+}
+
+model WishlistItem {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String?
+  serviceId String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, productId, serviceId])
+  @@index([userId])
+  @@map("wishlist_items")
+}
+
+enum ReturnPolicyType {
+  NON_RETURNABLE
+  RETURNABLE
+}
+
+enum ReturnRequestStatus {
+  REQUESTED
+  ACCEPTED
+  REJECTED
+}
+
+enum PickupStatus {
+  NOT_REQUESTED
+  PENDING
+  COMPLETED
+}
+
+enum RefundStatus {
+  NOT_REQUESTED
+  PENDING
+  COMPLETED
+}
+
+model ProductVariant {
+  id            String   @id @default(cuid())
+  productId     String
+  name          String   // e.g., "Small - Red"
+  sku           String?
+  price         Float
+  discount      Float    @default(0)   // Discount amount per item
+  hasGst        Boolean  @default(true)
+  stock         Int      @default(0)
+  attributes    Json     // e.g., {"size": "S", "color": "Red"}
+  images        Json?    // Array of image URLs per variant
+  specification String? @db.Text
+  details       String?  @db.Text
+  // Structured return policy per variant
+  returnType    ReturnPolicyType @default(NON_RETURNABLE)
+  returnDays    Int?
+  // When true, customer may request exchange (replacement) for this variant; gated by return policy.
+  replacementAllowed Boolean @default(false)
+  // Additional JSON details if needed
+  additionalInfo Json?   // e.g. {"Material":"Cotton","Care":"Machine wash"}
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+  returnRequestsAsReplacement ReturnRequest[] @relation("ReturnReplacementVariant")
+
+  @@index([productId])
+  @@map("product_variants")
+}
+
+model Service {
+  id                String      @id @default(cuid())
+  sellerId          String
+  serviceCategoryId String
+  name              String
+  slug              String
+  description       String?     @db.Text
+  serviceType       ServiceType
+  basePrice         Float?      // For fixed-price services
+  discount          Float       @default(0)      // Discount amount per item
+  hasGst            Boolean     @default(true)   // Y = 15% GST at checkout, N = no GST
+  images            Json        // Master/cover image URL(s); typically [oneUrl] — listing hero
+  galleryImages     Json        @default("[]")   // Additional gallery image URLs
+  isActive          Boolean     @default(true)
+  isDeleted         Boolean     @default(false)
+  isFeatured        Boolean     @default(false)
+  duration          Int?        // Duration in minutes (for appointments)
+  weeklyAvailability Json?     // [{ unavailable, shiftStart "HH:mm", shiftEnd "HH:mm" }] for each day 0-6 (Sun-Sat)
+  createdAt         DateTime    @default(now())
+  updatedAt         DateTime    @updatedAt
+
+  seller           Seller           @relation(fields: [sellerId], references: [id], onDelete: Cascade)
+  serviceCategory  ServiceCategory  @relation(fields: [serviceCategoryId], references: [id])
+  slots            ServiceSlot[]
+  packages         ServicePackage[]
+  orderItems       OrderItem[]
+  reviews          Review[]
+  cartItems        CartItem[]
+  sellerAds        SellerAd[]
+  wishlistItems    WishlistItem[]
+
+  @@unique([sellerId, slug])
+  @@index([serviceCategoryId])
+  @@index([sellerId])
+  @@index([isActive])
+  @@index([isDeleted])
+  @@map("services")
+}
+
+model ServiceSlot {
+  id        String   @id @default(cuid())
+  serviceId String
+  startTime DateTime
+  endTime   DateTime
+  isBooked  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  service     Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  orderItems  OrderItem[]
+  cartItems   CartItem[]
+
+  @@unique([serviceId, startTime])
+  @@index([serviceId])
+  @@index([startTime])
+  @@map("service_slots")
+}
+
+model ServicePackage {
+  id          String   @id @default(cuid())
+  serviceId   String
+  name        String
+  description String?  @db.Text
+  price       Float
+  features    Json     // Array of features stored as JSON
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  service      Service      @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  orderItems    OrderItem[]
+  cartItems     CartItem[]
+
+  @@index([serviceId])
+  @@map("service_packages")
+}
+
+/// Human-readable reference: `meeem00000001`, `meeem00000002`, … (see `allocateNextOrderNumber`).
+model OrderCounter {
+  id        Int @id @default(1)
+  lastValue Int @default(0)
+
+  @@map("order_counters")
+}
+
+model Order {
+  id              String        @id @default(cuid())
+  orderNumber     String        @unique
+  customerId      String
+  sellerId        String?
+  status          OrderStatus   @default(PENDING)
+  totalAmount     Float
+  subtotal        Float
+  tax             Float         @default(0)
+  shipping        Float         @default(0)
+  commission      Float         @default(0)
+  commissionRate  Float         // Store the commission rate at time of order
+  paymentStatus   PaymentStatus @default(PENDING)
+  paymentMethod   String?       // e.g. "COD", "STRIPE"
+  shippingAddress Json?         // Legacy; prefer snapshot columns below
+  shippingFullName    String?
+  shippingPhone       String?
+  shippingAddressLine1 String?
+  shippingAddressLine2 String?
+  shippingCity   String?
+  shippingState  String?
+  shippingPostalCode String?
+  shippingCountry String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+
+  customer   User        @relation(fields: [customerId], references: [id])
+  seller     Seller?     @relation(fields: [sellerId], references: [id])
+  items      OrderItem[]
+  payments   Payment[]
+  commissions Commission[]
+
+  @@index([customerId])
+  @@index([sellerId])
+  @@index([status])
+  @@map("orders")
+}
+
+model OrderItem {
+  id                  String   @id @default(cuid())
+  orderId             String
+  sellerId            String?
+  productId           String?
+  serviceId           String?
+  productVariantId    String?
+  servicePackageId    String?
+  serviceSlotId       String?
+  productNameSnapshot String?
+  serviceNameSnapshot String?
+  quantity            Int
+  price               Float    // unit price before GST
+  subtotal            Float    // line total before GST
+  hasGst              Boolean  @default(true)
+  gstAmount           Float    @default(0)
+  subtotalInclGst     Float?   // subtotal + gstAmount
+  itemStatus          OrderStatus @default(PENDING)
+  shippingAmount      Float    @default(0)
+  commissionAmount    Float    @default(0)
+  commissionRateSnapshot Float @default(0)
+  deliveredAt         DateTime?
+  deliveryProofImage  String?
+  deliveryOtp         String?
+  deliveryOtpExpires  DateTime?
+  createdAt           DateTime @default(now())
+  /// Points to the original line when this row is a Flipkart-style exchange replacement shipment.
+  exchangeSourceOrderItemId String?
+
+  order          Order           @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  seller         Seller?         @relation(fields: [sellerId], references: [id], onDelete: SetNull)
+  product        Product?        @relation(fields: [productId], references: [id])
+  service        Service?        @relation(fields: [serviceId], references: [id])
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id])
+  servicePackage ServicePackage? @relation(fields: [servicePackageId], references: [id])
+  serviceSlot    ServiceSlot?    @relation(fields: [serviceSlotId], references: [id])
+  review         Review?
+  returnRequest  ReturnRequest?
+  returnRequestAsReplacement ReturnRequest? @relation("ReturnReplacementOrderItem")
+  exchangeSourceOrderItem    OrderItem?     @relation("ExchangeReplacement", fields: [exchangeSourceOrderItemId], references: [id], onDelete: SetNull)
+  exchangeReplacementItems   OrderItem[]    @relation("ExchangeReplacement")
+  statusHistory  OrderItemStatusHistory[]
+  sellerBalanceTransactions SellerBalanceTransaction[]
+
+  @@index([exchangeSourceOrderItemId])
+
+  @@index([orderId])
+  @@index([orderId, sellerId])
+  @@index([sellerId, itemStatus])
+  @@map("order_items")
+}
+
+model OrderItemStatusHistory {
+  id          String      @id @default(cuid())
+  orderItemId String
+  status      OrderStatus
+  location    String?
+  note        String?
+  createdAt   DateTime    @default(now())
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([orderItemId, createdAt])
+  @@map("order_item_status_history")
+}
+
+model ReturnRequest {
+  id            String              @id @default(cuid())
+  orderItemId   String              @unique
+  orderId       String
+  customerId    String
+  sellerId      String
+  reason        String?
+  /// JSON array of image URLs (customer uploads). Required on new requests via API.
+  returnImages  Json               @default("[]")
+  status        ReturnRequestStatus @default(REQUESTED)
+  pickupStatus  PickupStatus        @default(NOT_REQUESTED)
+  refundStatus  RefundStatus        @default(NOT_REQUESTED)
+  resolutionType ReturnResolutionType @default(REFUND)
+  replacementVariantId String?
+  replacementOrderItemId String?   @unique
+  /// When replacement costs more than original (incl. GST): amount customer must pay before shipment.
+  exchangeTopUpAmount Float        @default(0)
+  exchangeTopUpStatus ExchangeTopUpStatus @default(NOT_REQUIRED)
+  /// When replacement costs less: amount credited to customer wallet after replacement is delivered.
+  exchangeRefundDifferenceAmount Float @default(0)
+  exchangeRefundDifferenceStatus RefundStatus @default(NOT_REQUESTED)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  replacementVariant ProductVariant? @relation("ReturnReplacementVariant", fields: [replacementVariantId], references: [id], onDelete: SetNull)
+  replacementOrderItem OrderItem? @relation("ReturnReplacementOrderItem", fields: [replacementOrderItemId], references: [id], onDelete: SetNull)
+  walletCredit WalletTransaction?
+  sellerBalanceTransactions SellerBalanceTransaction[]
+
+  @@index([orderId, customerId])
+  @@index([sellerId, status])
+  @@index([replacementVariantId])
+  @@map("return_requests")
+}
+
+model Payment {
+  id                   String        @id @default(cuid())
+  orderId              String
+  amount               Float
+  status               PaymentStatus @default(PENDING)
+  method               String?       // e.g. "COD", "STRIPE", "RAZORPAY"
+  stripePaymentIntentId String?      @unique
+  stripeChargeId       String?
+  gatewayReferenceId   String?       // generic: Stripe PI id, Razorpay order id, etc.
+  metadata             Json?         // gateway-specific extra data
+  createdAt            DateTime      @default(now())
+  updatedAt            DateTime      @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([stripePaymentIntentId])
+  @@map("payments")
+}
+
+model Commission {
+  id          String   @id @default(cuid())
+  orderId     String
+  sellerId    String
+  amount      Float
+  rate        Float
+  status      String   @default("pending") // pending, paid, refunded
+  paidAt      DateTime?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  order Order @relation(fields: [orderId], references: [id], onDelete: Cascade)
+
+  @@index([orderId])
+  @@index([sellerId])
+  @@map("commissions")
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  userId    String
+  productId String?
+  serviceId String?
+  orderItemId String? @unique
+  rating    Int      // 1-5
+  comment   String?  @db.Text
+  images    Json?
+  isVerified Boolean @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product Product? @relation(fields: [productId], references: [id], onDelete: Cascade)
+  service Service? @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  orderItem OrderItem? @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+
+  @@index([productId])
+  @@index([serviceId])
+  @@index([orderItemId])
+  @@map("reviews")
+}
+
+model CartItem {
+  id                String   @id @default(cuid())
+  userId            String
+  productId         String?
+  serviceId         String?
+  productVariantId  String?
+  servicePackageId  String?
+  serviceSlotId     String?
+  quantity          Int      @default(1)
+  unitPrice         Float    @default(0)  // per unit before GST
+  totalPrice        Float    @default(0)  // quantity * unitPrice (before GST)
+  hasGst            Boolean  @default(true)
+  totalGst          Float    @default(0)   // 15% of totalPrice when hasGst
+  totalPriceInclGst Float?   // totalPrice + totalGst
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  product       Product?        @relation(fields: [productId], references: [id], onDelete: Cascade)
+  service       Service?        @relation(fields: [serviceId], references: [id], onDelete: Cascade)
+  productVariant ProductVariant? @relation(fields: [productVariantId], references: [id], onDelete: Cascade)
+  servicePackage ServicePackage? @relation(fields: [servicePackageId], references: [id], onDelete: Cascade)
+  serviceSlot    ServiceSlot?    @relation(fields: [serviceSlotId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("cart_items")
+}
+
+model AdManagement {
+  id            String   @id @default(cuid())
+  image         String?  // URL or path to the advertisement image
+  title         String   // Title of the advertisement
+  description   String?  @db.Text // Optional description
+  isActive      Boolean  @default(true) // Status of the ad
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@map("ad_managements")
+}
+
+model GlobalSetting {
+  id              String   @id @default(cuid())
+  baseCommission  Float    @default(10.0)
+  updatedAt       DateTime @updatedAt
+
+  @@map("global_settings")
+}

@@ -1,0 +1,791 @@
+"use client"
+
+import { Fragment, useState, useEffect, useCallback } from "react"
+import Link from "next/link"
+import { useSearchParams, useRouter } from "next/navigation"
+import { Button } from "@/ui/button"
+import { Input } from "@/ui/input"
+import { Label } from "@/ui/label"
+import { cn } from "@/lib/utils"
+import { buildAdminPageUrl } from "@/lib/admin-pagination"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/ui/select"
+import { Badge } from "@/ui/badge"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/ui/table"
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/ui/card"
+import { AdminPagination } from "@/components/admin/admin-pagination"
+import { PageLoader } from "@/components/ui/page-loader"
+import { DocumentThumbnail } from "@/components/admin/document-viewer"
+import { Alert, AlertDescription } from "@/ui/alert"
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/ui/dialog"
+import { Textarea } from "@/ui/textarea"
+import { SellerDetailsView } from "@/components/admin/sellers/seller-details-view"
+import {
+  Users,
+  CheckCircle,
+  AlertCircle,
+  Ban,
+  Eye,
+  Store,
+  Mail,
+  Phone,
+  CreditCard,
+  Building2,
+  FileText,
+  Camera,
+  Clock2,
+  Globe,
+  Hash,
+  ShieldCheck,
+  ChevronDown,
+  X,
+  User,
+  MapPin,
+  MapPinned,
+  Search,
+  Handshake,
+  Check,
+  Scale,
+  Fingerprint,
+  Calendar,
+  Filter
+} from "lucide-react"
+
+export function SellersClient() {
+  const searchParams = useSearchParams()
+  const router = useRouter()
+  const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10) || 1)
+  const perPage = Math.min(50, Math.max(1, parseInt(searchParams.get("perPage") ?? "10", 10) || 10))
+  const tab = searchParams.get("tab") ?? "all"
+  const searchQ = searchParams.get("search") ?? ""
+  const typeFilter = searchParams.get("type") ?? "ALL"
+  const startParam = searchParams.get("startDate") ?? ""
+  const endParam = searchParams.get("endDate") ?? ""
+
+  // Local state for the search input to avoid re-rendering on every keystroke
+  const [searchInput, setSearchInput] = useState(searchQ)
+  const [startDate, setStartDate] = useState(startParam)
+  const [endDate, setEndDate] = useState(endParam)
+  const [localType, setLocalType] = useState(typeFilter)
+  const [localTab, setLocalTab] = useState(tab)
+
+  const [isMounted, setIsMounted] = useState(false)
+  useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  const [data, setData] = useState<{
+    sellers: any[]
+    totalCount: number
+    totalPages: number
+  } | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [actionLoading, setActionLoading] = useState<string | null>(null)
+  const [expandedSellerId, setExpandedSellerId] = useState<string | null>(null)
+
+  const [isCorrectionDialogOpen, setIsCorrectionDialogOpen] = useState(false)
+  const [isRejectDialogOpen, setIsRejectDialogOpen] = useState(false)
+  const [feedbackText, setFeedbackText] = useState("")
+  const [selectedSellerId, setSelectedSellerId] = useState<string | null>(null)
+
+  const successParam = searchParams.get("success")
+  const errorParam = searchParams.get("error")
+
+  const [isCommissionDialogOpen, setIsCommissionDialogOpen] = useState(false)
+  const [commissionValue, setCommissionValue] = useState<number | "">("")
+
+  const loadSellers = useCallback(
+    (opts?: { showLoading?: boolean }) => {
+      const showLoading = opts?.showLoading !== false
+      if (showLoading) {
+        setLoading(true)
+        setError(null)
+      }
+      const tabQs = tab === "all" ? "" : `&tab=${encodeURIComponent(tab)}`
+      const searchQs = searchQ ? `&search=${encodeURIComponent(searchQ)}` : ""
+      const typeQs = typeFilter !== "ALL" ? `&type=${encodeURIComponent(typeFilter)}` : ""
+      const startQs = startParam ? `&startDate=${encodeURIComponent(startParam)}` : ""
+      const endQs = endParam ? `&endDate=${encodeURIComponent(endParam)}` : ""
+
+      return fetch(`/api/admin/sellers?page=${page}&perPage=${perPage}${tabQs}${searchQs}${typeQs}${startQs}${endQs}`)
+        .then((res) => {
+          if (!res.ok) throw new Error("Failed to fetch sellers")
+          return res.json()
+        })
+        .then((json) => {
+          setData(json)
+        })
+        .catch((e) => {
+          setError(e.message)
+        })
+        .finally(() => {
+          if (showLoading) setLoading(false)
+        })
+    },
+    [page, perPage, tab, searchQ, typeFilter, startParam, endParam]
+  )
+
+  useEffect(() => {
+    let cancelled = false
+    setLoading(true)
+    setError(null)
+    const tabQs = tab === "all" ? "" : `&tab=${encodeURIComponent(tab)}`
+    const searchQs = searchQ ? `&search=${encodeURIComponent(searchQ)}` : ""
+    const typeQs = typeFilter !== "ALL" ? `&type=${encodeURIComponent(typeFilter)}` : ""
+    const startQs = startParam ? `&startDate=${encodeURIComponent(startParam)}` : ""
+    const endQs = endParam ? `&endDate=${encodeURIComponent(endParam)}` : ""
+
+    fetch(`/api/admin/sellers?page=${page}&perPage=${perPage}${tabQs}${searchQs}${typeQs}${startQs}${endQs}`)
+      .then((res) => {
+        if (!res.ok) throw new Error("Failed to fetch sellers")
+        return res.json()
+      })
+      .then((json) => {
+        if (!cancelled) setData(json)
+      })
+      .catch((e) => {
+        if (!cancelled) setError(e.message)
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [page, perPage, tab, searchQ, typeFilter, startParam, endParam])
+
+  // Sync local state with URL params (useful when browser back/forward buttons used)
+  useEffect(() => {
+    setSearchInput(searchQ)
+    setStartDate(startParam)
+    setEndDate(endParam)
+    setLocalType(typeFilter)
+    setLocalTab(tab)
+  }, [searchQ, startParam, endParam, typeFilter, tab])
+
+  const params = {
+    tab: tab === "all" ? undefined : tab,
+    search: searchQ || undefined,
+    type: typeFilter === "ALL" ? undefined : typeFilter,
+    startDate: startParam || undefined,
+    endDate: endParam || undefined,
+    error: errorParam || undefined,
+    success: successParam || undefined,
+  }
+
+  const handleSearch = () => {
+    const paramObj = {
+      ...params,
+      search: searchInput || undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+      type: localType === "ALL" ? undefined : localType,
+      tab: localTab === "all" ? undefined : localTab
+    }
+    router.push(buildAdminPageUrl("/admin/sellers", 1, paramObj))
+  }
+
+  const handleClear = () => {
+    setSearchInput("")
+    setStartDate("")
+    setEndDate("")
+    setLocalType("ALL")
+    setLocalTab("all")
+    router.push("/admin/sellers")
+  }
+
+  const handleApprove = async (sellerId: string) => {
+    setActionLoading(sellerId)
+    try {
+      const res = await fetch(`/api/admin/sellers/${sellerId}/approve`, { method: "POST" })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || "Failed")
+      await loadSellers({ showLoading: false })
+      router.push("/admin/sellers?success=approved")
+      router.refresh()
+    } catch (e: any) {
+      router.push(`/admin/sellers?error=${encodeURIComponent(e.message)}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleSuspend = async (sellerId: string) => {
+    setActionLoading(sellerId)
+    try {
+      const res = await fetch(`/api/admin/sellers/${sellerId}/suspend`, { method: "POST" })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || "Failed")
+      await loadSellers({ showLoading: false })
+      router.push("/admin/sellers?success=suspended")
+      router.refresh()
+    } catch (e: any) {
+      router.push(`/admin/sellers?error=${encodeURIComponent(e.message)}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleUnsuspend = async (sellerId: string) => {
+    setActionLoading(sellerId)
+    try {
+      const res = await fetch(`/api/admin/sellers/${sellerId}/unsuspend`, { method: "POST" })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || "Failed")
+      await loadSellers({ showLoading: false })
+      router.push("/admin/sellers?success=unsuspended")
+      router.refresh()
+    } catch (e: any) {
+      router.push(`/admin/sellers?error=${encodeURIComponent(e.message)}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleAdminAction = async (sellerId: string, action: string, feedback?: string) => {
+    setActionLoading(sellerId)
+    try {
+      const res = await fetch(`/api/admin/sellers/${sellerId}/status`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action, feedback })
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || "Failed")
+      await loadSellers({ showLoading: false })
+      router.push(`/admin/sellers?success=${action}_success`)
+      router.refresh()
+    } catch (e: any) {
+      router.push(`/admin/sellers?error=${encodeURIComponent(e.message)}`)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+  const handleUpdateCommission = async (sellerId: string, rate: number | null) => {
+    setActionLoading(sellerId)
+    try {
+      const res = await fetch(`/api/admin/sellers/${sellerId}/commission`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ commissionRate: rate }),
+      })
+      const json = await res.json()
+      if (!res.ok) throw new Error(json.error || "Failed")
+      await loadSellers({ showLoading: false })
+      setIsCommissionDialogOpen(false)
+      router.refresh()
+    } catch (e: any) {
+      setError(e.message)
+    } finally {
+      setActionLoading(null)
+    }
+  }
+
+
+
+  const sellerTabs = [
+    { id: "all", label: "All Sellers", icon: Users },
+    { id: "pending", label: "Review Pending", icon: AlertCircle },
+    { id: "approved", label: "Fully Approved", icon: CheckCircle },
+    { id: "suspended", label: "Suspended", icon: Ban },
+  ] as const
+
+  if (!isMounted) return <PageLoader />
+
+  return (
+    <div className="container mx-auto p-6 space-y-8 animate-in fade-in duration-700">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-medium text-foreground">Seller Management</h1>
+          <p className="text-muted-foreground mt-1 text-sm font-medium">Moderate applications and monitor seller performance</p>
+        </div>
+        <div className="flex items-center gap-2">
+          {data && (
+            <Badge variant="outline" className="px-3 py-1 text-xs font-medium rounded-full shadow-sm bg-background border-primary/20 text-primary">
+              {data.totalCount} Total Sellers
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      {params.error && (
+        <Alert variant="destructive" className="border-none shadow-xl bg-destructive/10 text-destructive animate-in slide-in-from-top-4 duration-500">
+          <AlertCircle className="h-5 w-5" />
+          <AlertDescription className="font-medium">{decodeURIComponent(params.error)}</AlertDescription>
+        </Alert>
+      )}
+      {params.success && (
+        <Alert className="border-none shadow-xl bg-green-500/10 text-green-600 animate-in slide-in-from-top-4 duration-500">
+          <CheckCircle className="h-5 w-5" />
+          <AlertDescription className="font-medium uppercase tracking-widest text-xs">Action completed: {params.success}</AlertDescription>
+        </Alert>
+      )}
+
+      <Card className="border-none shadow-2xl overflow-hidden rounded-3xl bg-gradient-to-br from-background via-background to-muted/20">
+        <CardHeader className="pb-4">
+          <div className="flex items-center gap-2 mb-4 px-4 pt-2">
+            <Filter className="h-4 w-4 text-primary" />
+            <CardTitle className="text-sm font-semibold uppercase tracking-wider">Search & Filters</CardTitle>
+          </div>
+
+          <div className="px-4 pb-4">
+            {/* FILTER FLEX WRAP */}
+            <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+              {/* Name Search */}
+              <div className="space-y-1.5 font-medium flex-1 min-w-[280px] max-w-[400px]">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider ml-1">Search Seller</Label>
+                <div className="relative">
+                  <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Name, email, or store..."
+                    className="pl-9 bg-background/50 border-muted rounded-xl h-10"
+                    value={searchInput}
+                    onChange={(e) => setSearchInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") handleSearch()
+                    }}
+                  />
+                </div>
+              </div>
+
+              {/* Date Filters */}
+              <div className="space-y-1.5 font-medium min-w-[320px]">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider ml-1">Registration Date</Label>
+                <div className="flex items-center gap-2">
+                  <div className="relative w-[150px]">
+                    <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground opacity-70" />
+                    <Input
+                      type="date"
+                      className="pl-9 bg-background/50 border-muted rounded-xl text-xs h-10 w-full"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                    />
+                  </div>
+                  <span className="text-muted-foreground">−</span>
+                  <div className="relative w-[150px]">
+                    <Calendar className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground opacity-70" />
+                    <Input
+                      type="date"
+                      className="pl-9 bg-background/50 border-muted rounded-xl text-xs h-10 w-full"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Seller Type Select */}
+              <div className="space-y-1.5 font-medium min-w-[180px]">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider ml-1">Seller Type</Label>
+                <Select
+                  value={localType}
+                  onValueChange={setLocalType}
+                >
+                  <SelectTrigger className="bg-background/50 border-muted rounded-xl h-10">
+                    <SelectValue placeholder="All Categories" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL">All Types</SelectItem>
+                    <SelectItem value="PRODUCT">Product Sellers</SelectItem>
+                    <SelectItem value="SERVICE">Service Providers</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Status Select */}
+              <div className="space-y-1.5 font-medium min-w-[180px]">
+                <Label className="text-xs text-muted-foreground uppercase tracking-wider ml-1">Status</Label>
+                <Select
+                  value={localTab}
+                  onValueChange={setLocalTab}
+                >
+                  <SelectTrigger className="bg-background/50 border-muted rounded-xl h-10">
+                    <SelectValue placeholder="All Statuses" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sellers</SelectItem>
+                    <SelectItem value="pending">Review Pending</SelectItem>
+                    <SelectItem value="approved">Fully Approved</SelectItem>
+                    <SelectItem value="suspended">Suspended</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Actions */}
+              <div className="flex items-center gap-2 py-0.5">
+                <Button
+                  onClick={handleSearch}
+                  className="rounded-xl px-6 h-10 gap-2 font-bold shadow-lg shadow-primary/20"
+                >
+                  <Search className="h-4 w-4" />
+                  Apply Search
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={handleClear}
+                  className="rounded-xl px-4 h-10 gap-2 font-medium"
+                >
+                  <X className="h-4 w-4" />
+                  Reset
+                </Button>
+              </div>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent className="p-0">
+          {loading ? (
+            <div className="py-32">
+              <PageLoader message="Curating seller list…" />
+            </div>
+          ) : error ? (
+            <div className="py-24 text-center px-6">
+              <AlertCircle className="h-10 w-10 text-destructive mx-auto mb-4" />
+              <p className="text-destructive font-medium">{error}</p>
+              <Button variant="outline" className="mt-4 rounded-full font-medium" onClick={() => loadSellers()}>Try Again</Button>
+            </div>
+          ) : !data ? null : (
+            <>
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader className="bg-muted/30 border-none transition-none">
+                    <TableRow className="hover:bg-transparent border-none">
+                      <TableHead className="py-4 pl-8 text-xs font-medium text-muted-foreground/80">Identity</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground/80">Venture</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground/80">Classification</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground/80">Standing</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground/80">Subscription</TableHead>
+                      <TableHead className="text-xs font-medium text-muted-foreground/80">Commission</TableHead>
+                      <TableHead className="text-right pr-8 text-xs font-medium text-muted-foreground/80">Control</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {data.sellers.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={7} className="text-center py-24">
+                          <Users className="h-12 w-12 text-muted-foreground/20 mx-auto mb-4" />
+                          <p className="text-muted-foreground font-medium uppercase tracking-[0.2em] text-xs">No matching sellers identified</p>
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      data.sellers.map((seller: any) => {
+                        const isExpanded = expandedSellerId === seller.id
+                        return (
+                          <Fragment key={seller.id}>
+                            <TableRow className={cn(
+                              "group transition-all hover:bg-muted/20 border-b border-muted/30",
+                              isExpanded && "bg-muted/10 shadow-inner"
+                            )}>
+                              <TableCell className="py-5 pl-8 font-medium">
+                                <div className="flex flex-col">
+                                  <span>{seller.user?.name || "Unnamed Entity"}</span>
+                                  <span className="text-[10px] text-muted-foreground/70 font-mono tracking-tighter font-medium">{seller.user?.email}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex items-center gap-2">
+                                  <div className="p-1.5 bg-orange-500/5 rounded-lg border border-orange-500/10">
+                                    <Store className="h-3.5 w-3.5 text-orange-500" />
+                                  </div>
+                                  <span className="font-medium text-sm line-clamp-1">{seller.store?.name || "—"}</span>
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                <Badge variant="secondary" className="rounded-full text-[10px] font-medium px-3 py-0.5 border-none shadow-sm uppercase tracking-wider bg-indigo-500/10 text-indigo-600">
+                                  {seller.type}
+                                </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <div className="flex flex-wrap gap-1.5">
+                                  <Badge
+                                    className={cn(
+                                      "rounded-full text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 border-none shadow-sm",
+                                      seller.isApproved ? "bg-green-500 text-white" : "bg-blue-500 text-white"
+                                    )}
+                                  >
+                                    {seller.isApproved ? "Approved" : "Review Stage"}
+                                  </Badge>
+                                  {seller.isSuspended && (
+                                    <Badge className="bg-destructive text-white rounded-full text-[9px] font-medium uppercase tracking-widest px-2 py-0.5 border-none shadow-sm">
+                                      Suspended
+                                    </Badge>
+                                  )}
+                                </div>
+                              </TableCell>
+                              <TableCell>
+                                {seller.subscription?.plan?.displayName ? (
+                                  <div className="flex items-center gap-2">
+                                    <div className="w-2 h-2 rounded-full bg-primary animate-pulse" />
+                                    <span className="text-xs font-medium text-primary/80 uppercase">{seller.subscription.plan.displayName}</span>
+                                  </div>
+                                ) : (
+                                  <span className="text-[10px] font-medium text-muted-foreground uppercase opacity-40">None</span>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {seller.commissionRate != null ? (
+                                  <div
+                                    className="flex items-center gap-2 cursor-pointer group/comm"
+                                    onClick={() => {
+                                      setSelectedSellerId(seller.id)
+                                      setCommissionValue(seller.commissionRate)
+                                      setIsCommissionDialogOpen(true)
+                                    }}
+                                  >
+                                    <Badge className="bg-amber-500/10 text-amber-600 border-none rounded-full px-2.5 font-bold text-[10px] shadow-sm group-hover/comm:bg-amber-500 group-hover/comm:text-white transition-all">
+                                      {seller.commissionRate}%
+                                    </Badge>
+                                  </div>
+                                ) : (
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    className="h-7 px-3 text-[10px] font-bold uppercase tracking-widest text-primary hover:bg-primary/10 bg-primary/5 border border-primary/20 rounded-full transition-all"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSelectedSellerId(seller.id)
+                                      setCommissionValue(seller.commissionRate || "")
+                                      setIsCommissionDialogOpen(true)
+                                    }}
+                                  >
+                                    Assign
+                                  </Button>
+                                )}
+                              </TableCell>
+                              <TableCell className="text-right pr-8">
+                                <div className="flex justify-end items-center gap-2">
+                                  <Button
+                                    type="button"
+                                    size="icon"
+                                    variant="ghost"
+                                    className={cn(
+                                      "h-8 w-8 rounded-full transition-all duration-300",
+                                      isExpanded ? "bg-primary text-primary-foreground rotate-180" : "hover:bg-primary/10 hover:text-primary"
+                                    )}
+                                    onClick={() => setExpandedSellerId(isExpanded ? null : seller.id)}
+                                  >
+                                    <ChevronDown className="h-4 w-4" />
+                                  </Button>
+
+                                  <Link
+                                    href={`/admin/sellers/${seller.id}`}
+                                    className="flex items-center justify-center h-8 w-8 rounded-full border border-primary/20 bg-primary/5 text-primary hover:bg-primary/10 transition-all shadow-sm"
+                                    title="View Full Details"
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Link>
+
+                                  <div className="flex items-center gap-2 transition-all duration-300">
+                                    {!seller.isApproved && (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        className="h-8 rounded-full font-medium uppercase tracking-widest text-[9px] bg-green-500 hover:bg-green-600"
+                                        disabled={actionLoading === seller.id}
+                                        onClick={() => handleApprove(seller.id)}
+                                      >
+                                        Approve
+                                      </Button>
+                                    )}
+                                    {seller.isSuspended ? (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="outline"
+                                        className="h-8 rounded-full font-medium uppercase tracking-widest text-[9px] border-blue-500 text-blue-500 hover:bg-blue-50"
+                                        disabled={actionLoading === seller.id}
+                                        onClick={() => handleUnsuspend(seller.id)}
+                                      >
+                                        Unsuspend
+                                      </Button>
+                                    ) : (
+                                      <Button
+                                        type="button"
+                                        size="sm"
+                                        variant="destructive"
+                                        className="h-8 rounded-full font-medium uppercase tracking-widest text-[9px] shadow-lg shadow-destructive/10"
+                                        disabled={actionLoading === seller.id}
+                                        onClick={() => handleSuspend(seller.id)}
+                                      >
+                                        Suspend
+                                      </Button>
+                                    )}
+                                  </div>
+                                </div>
+                              </TableCell>
+                            </TableRow>
+
+                            {isExpanded && (
+                              <TableRow className="bg-muted/5 border-b border-muted/30">
+                                <TableCell colSpan={7} className="p-0">
+                                  <div className="p-8">
+                                    <SellerDetailsView
+                                      seller={seller}
+                                      actionLoading={actionLoading}
+                                      onApprove={handleApprove}
+                                      onSuspend={handleSuspend}
+                                      onUnsuspend={handleUnsuspend}
+                                      onOpenCommission={(id, rate) => {
+                                        setSelectedSellerId(id)
+                                        setCommissionValue(rate)
+                                        setIsCommissionDialogOpen(true)
+                                      }}
+                                      onOpenCorrection={(id) => {
+                                        setSelectedSellerId(id)
+                                        setFeedbackText("")
+                                        setIsCorrectionDialogOpen(true)
+                                      }}
+                                      onOpenReject={(id) => {
+                                        setSelectedSellerId(id)
+                                        setFeedbackText("")
+                                        setIsRejectDialogOpen(true)
+                                      }}
+                                    />
+                                  </div>
+                                </TableCell>
+                              </TableRow>
+                            )}
+                          </Fragment>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+
+              {/* Correction Dialog */}
+              <Dialog open={isCorrectionDialogOpen} onOpenChange={setIsCorrectionDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Request Correction</DialogTitle>
+                    <DialogDescription>
+                      Inform the seller about missing or incorrect information. They will be notified to update their details.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-4">
+                    <Label htmlFor="feedback">Adjustment Feedback</Label>
+                    <Textarea
+                      id="feedback"
+                      placeholder="e.g. Please re-upload your clear bank passbook..."
+                      className="mt-2"
+                      value={feedbackText}
+                      onChange={(e) => setFeedbackText(e.target.value)}
+                    />
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsCorrectionDialogOpen(false)}>Cancel</Button>
+                    <Button
+                      disabled={actionLoading === selectedSellerId}
+                      onClick={async () => {
+                        if (selectedSellerId) {
+                          await handleAdminAction(selectedSellerId, "correction", feedbackText)
+                          setIsCorrectionDialogOpen(false)
+                        }
+                      }}
+                    >
+                      {actionLoading === selectedSellerId ? "Sending..." : "Send Request"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Reject Dialog */}
+              <Dialog open={isRejectDialogOpen} onOpenChange={setIsRejectDialogOpen}>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle className="text-destructive">Reject Seller Application</DialogTitle>
+                    <DialogDescription>
+                      Are you sure you want to permanently reject this seller? This action cannot be undone and will prevent the seller from operating on the platform.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsRejectDialogOpen(false)}>Cancel</Button>
+                    <Button
+                      variant="destructive"
+                      disabled={actionLoading === selectedSellerId}
+                      onClick={async () => {
+                        if (selectedSellerId) {
+                          await handleAdminAction(selectedSellerId, "reject")
+                          setIsRejectDialogOpen(false)
+                        }
+                      }}
+                    >
+                      {actionLoading === selectedSellerId ? "Rejecting..." : "Reject Permanently"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              {/* Commission Dialog */}
+              <Dialog open={isCommissionDialogOpen} onOpenChange={setIsCommissionDialogOpen}>
+                <DialogContent className="sm:max-w-[400px] border-none shadow-2xl rounded-[2rem]">
+                  <DialogHeader>
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="p-2 bg-amber-500/10 rounded-xl">
+                        <Globe className="h-5 w-5 text-amber-600" />
+                      </div>
+                      <DialogTitle className="text-xl font-medium">Assign Seller Commission</DialogTitle>
+                    </div>
+                    <DialogDescription className="text-sm font-medium opacity-60">
+                      Set a custom commission rate for this specific seller. This will override the platform base rate.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-8 space-y-4">
+                    <div className="space-y-3">
+                      <Label htmlFor="commRate" className="text-[10px] font-medium uppercase tracking-widest text-muted-foreground ml-1">Override Rate (%)</Label>
+                      <div className="relative">
+                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-muted-foreground/40 font-bold">%</div>
+                        <Input
+                          id="commRate"
+                          type="number"
+                          placeholder="e.g. 12.5"
+                          step="0.1"
+                          value={commissionValue}
+                          onChange={(e) => setCommissionValue(e.target.value ? parseFloat(e.target.value) : "")}
+                          className="pl-12 border-muted bg-muted/20 rounded-2xl h-14 focus-visible:ring-amber-500 font-bold text-lg shadow-inner"
+                        />
+                      </div>
+                      <p className="text-[9px] text-muted-foreground/60 ml-1 italic">* Leave empty or set to 0 to use platform default.</p>
+                    </div>
+                  </div>
+                  <DialogFooter className="gap-3">
+                    <Button variant="ghost" className="rounded-full px-6 font-medium text-xs uppercase tracking-widest" onClick={() => setIsCommissionDialogOpen(false)}>Cancel</Button>
+                    <Button
+                      className="bg-amber-500 hover:bg-amber-600 rounded-full px-8 h-12 font-medium uppercase tracking-[0.1em] text-[10px] shadow-lg shadow-amber-500/20"
+                      disabled={actionLoading === selectedSellerId}
+                      onClick={() => {
+                        if (selectedSellerId) {
+                          handleUpdateCommission(selectedSellerId, commissionValue === "" ? null : Number(commissionValue))
+                        }
+                      }}
+                    >
+                      {actionLoading === selectedSellerId ? "Synchronizing..." : "Update Commission"}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <div className="p-8 bg-muted/10 border-t border-muted/20 rounded-b-3xl">
+                <AdminPagination
+                  basePath="/admin/sellers"
+                  currentPage={page}
+                  totalPages={data.totalPages}
+                  totalCount={data.totalCount}
+                  pageSize={perPage}
+                  params={params}
+                />
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  )
+}

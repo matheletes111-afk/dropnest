@@ -1,0 +1,35 @@
+import { NextResponse } from "next/server";
+import { prisma } from "@/lib/prisma";
+
+/** GET active categories with subcategories for home page category boxes. Only returns categories that have at least one active product. Public, no auth. */
+export async function GET() {
+  try {
+    const categories = await prisma.category.findMany({
+      where: {
+        isActive: true,
+        products: { some: { isActive: true } },
+      },
+      include: {
+        subcategories: {
+          where: { isActive: true },
+          orderBy: { name: "asc" },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            image: true,
+            mobileIcon: true,
+          },
+        },
+      },
+      orderBy: [{ isFeatured: "desc" }, { createdAt: "desc" }],
+    });
+    return NextResponse.json(categories);
+  } catch (error) {
+    console.error("Error fetching home categories:", error);
+    return NextResponse.json(
+      { error: "Failed to fetch categories" },
+      { status: 500 }
+    );
+  }
+}

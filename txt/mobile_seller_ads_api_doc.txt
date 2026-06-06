@@ -1,0 +1,172 @@
+# Mobile Seller Ad Management APIs
+
+This document outlines the APIs for managing advertisements for both Product and Service Sellers.
+
+## 1. List Ads (GET)
+**Endpoints:**
+- Product Seller: `GET /mobileapi/product-seller/ads?page=1&perPage=10`
+- Service Seller: `GET /mobileapi/service-seller/ads?page=1&perPage=10`
+
+**Headers:**
+- `Authorization: Bearer <access_token>`
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "data": {
+    "ads": [
+      {
+        "id": "ad_123",
+        "title": "Summer Sale",
+        "status": "ACTIVE",
+        "totalBudget": 500.0,
+        "spentAmount": 120.5,
+        "maxCpc": 0.5,
+        "clickCount": 241,
+        "createdAt": "2026-04-14T10:00:00Z"
+      }
+    ],
+    "pagination": {
+      "totalCount": 1,
+      "totalPages": 1,
+      "page": 1,
+      "perPage": 10
+    }
+  }
+}
+```
+
+---
+
+## 2. Create Ad (POST)
+**Headers:**
+- `Authorization: Bearer <access_token>`
+- `Content-Type: multipart/form-data` (Recommended for file uploads) OR `application/json`
+
+*(Note: If the OS fails to generate a MIME type for `.jpg` images, the API will now safely fallback to reading the `.jpg` / `.jpeg` extension itself.)*
+
+### 2A. Product Seller Create API
+**Endpoint:** `POST /mobileapi/product-seller/ads`
+
+**Multipart Form Data Fields:**
+- `adType`: String ("promote_product" | "own_ad") - Required.
+- `productId`: String - Required if `adType` is "promote_product". Omit if "own_ad".
+- `title`: String - Required.
+- `description`: String - Optional.
+- `placements`: Array or comma-separated string (e.g., `["WEB", "MOBILE"]` or `"WEB,MOBILE"`) - Required.
+- `totalBudget`: Float - Required.
+- `targetAudience`: Integer (Desired number of clicks) - Optional but recommended.
+- `maxCpc`: Float - Required. (Auto-calculated via `totalBudget` / `targetAudience`).
+- `startAt`: ISO Date String - Required.
+- `endAt`: ISO Date String - Required.
+- `creativeType`: String ("IMAGE" | "VIDEO") - Required if WEB placement used.
+- `creativeFile`: File - Required if WEB placement used and uploading new file.
+- `creativeUrl`: String - Optional, if using an already uploaded file.
+- `mobileCreativeType`: String ("IMAGE" | "VIDEO") - Required if MOBILE placement used.
+- `mobileCreativeFile`: File - Required if MOBILE placement used and uploading new file.
+- `mobileCreativeUrl`: String - Optional, if using an already uploaded file.
+- `targetCountries`: JSON string or Comma-separated string (e.g. "US,IN") - Optional.
+- `targetAgeMin`: Integer - Optional.
+- `targetAgeMax`: Integer - Optional.
+- `expandAudience`: Boolean (`"true"` or `"on"`) - Optional.
+
+### 2B. Service Seller Create API
+**Endpoint:** `POST /mobileapi/service-seller/ads`
+
+**Multipart Form Data Fields:**
+- `adType`: String ("promote_service" | "own_ad") - Required.
+- `serviceId`: String - Required if `adType` is "promote_service". Omit if "own_ad".
+- `title`: String - Required.
+- `description`: String - Optional.
+- `placements`: Array or comma-separated string (e.g., `["WEB", "MOBILE"]` or `"WEB,MOBILE"`) - Required.
+- `totalBudget`: Float - Required.
+- `targetAudience`: Integer (Desired number of clicks) - Optional but recommended.
+- `maxCpc`: Float - Required. (Auto-calculated via `totalBudget` / `targetAudience`).
+- `startAt`: ISO Date String - Required.
+- `endAt`: ISO Date String - Required.
+- `creativeType`: String ("IMAGE" | "VIDEO") - Required if WEB placement used.
+- `creativeFile`: File - Required if WEB placement used and uploading new file.
+- `creativeUrl`: String - Optional, if using an already uploaded file.
+- `mobileCreativeType`: String ("IMAGE" | "VIDEO") - Required if MOBILE placement used.
+- `mobileCreativeFile`: File - Required if MOBILE placement used and uploading new file.
+- `mobileCreativeUrl`: String - Optional, if using an already uploaded file.
+- `targetCountries`: JSON string or Comma-separated string (e.g. "US,IN") - Optional.
+- `targetAgeMin`: Integer - Optional.
+- `targetAgeMax`: Integer - Optional.
+- `expandAudience`: Boolean (`"true"` or `"on"`) - Optional.
+
+**Success Response (201 Created) for both:**
+```json
+{
+  "success": true,
+  "data": { "id": "ad_new_id", "status": "PENDING_APPROVAL", ... }
+}
+```
+
+---
+
+## 3. Ad Details (GET)
+**Endpoints:**
+- Product Seller: `GET /mobileapi/product-seller/ads/[id]`
+- Service Seller: `GET /mobileapi/service-seller/ads/[id]`
+
+**Headers:**
+- `Authorization: Bearer <access_token>`
+
+**Success Response (200 OK):**
+Returns the full ad object including `status`, `product`/`service` details, and `clickCount`.
+
+---
+
+## 4. Status Toggle (PATCH)
+**Endpoints:**
+- Product Seller: `PATCH /mobileapi/product-seller/ads/[id]`
+- Service Seller: `PATCH /mobileapi/service-seller/ads/[id]`
+
+**Headers:**
+- `Authorization: Bearer <access_token>`
+- `Content-Type: application/json`
+
+**Request Payload:**
+```json
+{
+  "status": "PAUSED" // or "ACTIVE"
+}
+```
+*Note: You can only pause an ACTIVE ad, and resume a PAUSED ad.*
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true,
+  "status": "PAUSED",
+  "data": { ... }
+}
+```
+
+---
+
+## 5. Delete Ad (DELETE)
+**Endpoints:**
+- Product Seller: `DELETE /mobileapi/product-seller/ads/[id]`
+- Service Seller: `DELETE /mobileapi/service-seller/ads/[id]`
+
+**Headers:**
+- `Authorization: Bearer <access_token>`
+
+**Success Response (200 OK):**
+```json
+{
+  "success": true
+}
+```
+
+---
+
+## Ad Statuses Explanation:
+- `PENDING_APPROVAL`: Ad is created and waiting for Admin to review.
+- `ACTIVE`: Ad is approved and currently running.
+- `PAUSED`: Ad has been manually paused by the seller.
+- `ENDED`: Ad reached its budget or end date.
+- `REJECTED`: Admin rejected the ad (check `rejectionReason` in details).
