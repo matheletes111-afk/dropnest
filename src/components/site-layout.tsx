@@ -109,7 +109,7 @@ export function SiteHeader() {
   }
 
   return (
-    <header className="sticky top-0 z-50 border-b border-blue-900/20 bg-gradient-to-r from-blue-50 via-blue-200 to-cyan-600 shadow-md">
+    <header className="sticky top-0 z-50 border-b border-blue-900/20 bg-gradient-to-r from-blue-50 via-blue-300 to-blue-900 shadow-md">
       <div className="container mx-auto flex min-h-14 items-center gap-2 px-3 py-2 sm:min-h-[3.5rem] sm:gap-4 sm:px-4 sm:py-0">
         <a href="/" className="flex shrink-0 items-center">
           <Image
@@ -117,7 +117,7 @@ export function SiteHeader() {
             alt="Logo"
             width={120}
             height={36}
-            className="h-8 w-auto object-contain sm:h-9"
+            className="h-8 w-auto object-contain sm:h-16"
             priority
           />
         </a>
@@ -614,7 +614,7 @@ export function SiteFooter() {
   const headingClass = "mb-3 text-sm font-semibold uppercase tracking-wider text-slate-800 sm:mb-4"
 
   return (
-    <footer className="border-t border-blue-900/20 bg-gradient-to-r from-blue-50 via-blue-200 to-cyan-600 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
+    <footer className="border-t border-blue-900/20 bg-gradient-to-r from-blue-50 via-blue-300 to-blue-200 shadow-[0_-2px_10px_rgba(0,0,0,0.06)]">
       <div className="container mx-auto px-4 py-6 sm:px-6 sm:py-7 lg:px-8 lg:py-8">
         <div className="grid grid-cols-1 gap-6 sm:grid-cols-2 sm:gap-6 lg:grid-cols-[1fr_1fr_1fr_auto] lg:gap-8 lg:items-start">
           {/* Quick Links */}
