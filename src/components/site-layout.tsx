@@ -671,7 +671,7 @@ export function SiteFooter() {
               <div className="min-w-0 flex-1">
                 <div className="flex items-start gap-2 text-sm text-slate-700">
                   <MapPin className="mt-0.5 h-4 w-4 shrink-0 text-slate-600" />
-                  <span className="break-words">123 Market St, Suite 100, City, State 12345, USA</span>
+                  <span className="break-words">HSR Layout, Bangalore</span>
                 </div>
               </div>
               <a href="/" className="mt-2 ml-14 shrink-0 sm:mt-3 sm:ml-14" aria-label="MEEEM home">
@@ -679,14 +679,14 @@ export function SiteFooter() {
               </a>
             </div>
             <ul className="mt-3 flex flex-col gap-2 text-sm text-slate-700">
-              <li className="flex items-center gap-2">
+              {/* <li className="flex items-center gap-2">
                 <Mail className="h-4 w-4 shrink-0 text-slate-600" />
                 <a href="mailto:info@example.com" className="truncate hover:text-slate-900 hover:underline">info@example.com</a>
-              </li>
-              <li className="flex items-center gap-2">
+              </li> */}
+              {/* <li className="flex items-center gap-2">
                 <Phone className="h-4 w-4 shrink-0 text-slate-600" />
                 <a href="tel:+13025550123" className="hover:text-slate-900 hover:underline">+1 (302) 555-0123</a>
-              </li>
+              </li> */}
             </ul>
             <div className="mt-3 flex gap-2">
               <a href="#" aria-label="Facebook" className="flex h-8 w-8 items-center justify-center rounded-full bg-white/80 text-slate-700 shadow-sm transition-colors hover:bg-white hover:shadow sm:h-9 sm:w-9">
